@@ -30,7 +30,12 @@ jobs:
           python-version: "3.12"
       - name: Discover public business candidates
         run: python scripts/lead_research.py
-      - name: Report safe summary only
+      - name: Sync candidates to owner's private CRM when secrets are configured
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
+        run: python scripts/sync_candidates_supabase.py
+      - name: Report safe research summary
         run: |
           python - <<'PY'
           import csv, os
@@ -39,7 +44,7 @@ jobs:
           if os.path.exists(path):
               with open(path, newline="", encoding="utf-8-sig") as f:
                   count = sum(1 for row in csv.DictReader(f))
-          summary = f"Research run completed. Candidate count: {count}. Candidate details were not committed or uploaded because this repository is public. Connect authenticated private storage before enabling persistent lead automation."
+          summary = f"Research run completed. Candidate rows: {count}. Lead details are not committed to this public repository. Private CRM sync status is reported in the preceding step summary."
           print(summary)
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
               f.write("## Lead research result\n\n" + summary + "\n")
