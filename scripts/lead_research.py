@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """High-precision discovery of public business requirement candidates.
 
+Refresh note: daily automation is intentionally allowed to return zero results rather than low-confidence leads.
+
 This script NEVER confirms buyer intent. Search evidence remains a candidate until
 the client explicitly confirms the requirement and contact details are verified.
 """
