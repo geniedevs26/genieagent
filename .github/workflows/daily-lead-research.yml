@@ -9,8 +9,9 @@ on:
     - cron: "0 1 * * *"
   workflow_dispatch:
 
+# Keep generated lead records out of a public repository.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: daily-public-lead-research
@@ -29,14 +30,17 @@ jobs:
           python-version: "3.12"
       - name: Discover public business candidates
         run: python scripts/lead_research.py
-      - name: Commit updated candidate list
+      - name: Report safe summary only
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/research_candidates.csv data/qualified_leads.csv
-          if ! git diff --cached --quiet; then
-            git commit -m "Update daily public lead research"
-            git push
-          else
-            echo "No lead file changes to commit."
-          fi
+          python - <<'PY'
+          import csv, os
+          path = "data/research_candidates.csv"
+          count = 0
+          if os.path.exists(path):
+              with open(path, newline="", encoding="utf-8-sig") as f:
+                  count = sum(1 for row in csv.DictReader(f))
+          summary = f"Research run completed. Candidate count: {count}. Candidate details were not committed or uploaded because this repository is public. Connect authenticated private storage before enabling persistent lead automation."
+          print(summary)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write("## Lead research result\n\n" + summary + "\n")
+          PY
