@@ -77,7 +77,7 @@ INTENT = re.compile(
 )
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory", re.I)
 
-def get(url, timeout=10):
+def get(url, timeout=5):
     try:
         req = Request(url, headers=HEADERS)
         with urlopen(req, timeout=timeout) as r:
@@ -101,7 +101,7 @@ def host(url):
     except Exception: return ""
 
 def search(query):
-    raw=get("https://www.bing.com/search?format=rss&q="+quote(query))
+    raw=get("https://www.bing.com/search?format=rss&q="+quote(query), timeout=6)
     if not raw: return []
     try:
         root=ET.fromstring(raw)
@@ -123,14 +123,19 @@ def main():
                 if key and row.get("status")=="Confirmed lead" and row.get("clientNeedConfirmed")=="Yes" and row.get("contactVerified")=="Yes" and row.get("needEvidenceUrl") and not is_skipped(domain) and INTENT.search(evidence) and not LOW_QUALITY.search(evidence):
                     old[key]=row
     added=0
+    checked=0
+    max_checks_per_run=60
     for query in QUERIES:
+        if checked >= max_checks_per_run or added >= 50: break
         for title,url,snippet in search(query):
+            if checked >= max_checks_per_run or added >= 50: break
             domain=host(url)
             combined=re.sub(r"\s+"," ",title+" "+snippet)
             if not url.startswith("http") or "." not in domain or is_skipped(domain): continue
             if LOW_QUALITY.search(combined) or not INTENT.search(combined): continue
             key=url.split("#")[0].rstrip("/")
             if key in old or any(host(v.get("website",""))==domain for v in old.values()): continue
+            checked += 1
             page=get(url)
             parser=Links()
             if page:
