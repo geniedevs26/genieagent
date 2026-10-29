@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/lead_research.py'
       - 'scripts/sync_candidates_supabase.py'
+      - 'scripts/auto_outreach.py'
       - 'scripts/sync_candidates_supabase.py'
       - '.github/workflows/daily-lead-research.yml'
   schedule:
@@ -37,6 +38,17 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
         run: python scripts/sync_candidates_supabase.py
+      - name: Send one initial email to newly confirmed leads when enabled
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
+          AUTO_OUTREACH_ENABLED: ${{ secrets.AUTO_OUTREACH_ENABLED }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          GENIE_SENDER_EMAIL: ${{ secrets.GENIE_SENDER_EMAIL }}
+        run: python scripts/auto_outreach.py
       - name: Report safe research summary
         run: |
           python - <<'PY'
