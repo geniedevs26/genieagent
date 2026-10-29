@@ -58,6 +58,13 @@ def main():
     owner=next((u for u in users.get("users",[]) if (u.get("email") or "").lower()==owner_email),None)
     if not owner: raise RuntimeError("Owner email not found in Supabase Auth.")
     owner_id=owner["id"]
+    # After 10 manually confirmed wins in the CRM, gently reduce outbound volume.
+    won_leads=api("/rest/v1/leads?"+urllib.parse.urlencode({
+        "owner_id":"eq."+owner_id,"lead_status":"eq.won","select":"id","limit":"1000"
+    }),key) or []
+    daily_limit=2 if len(won_leads)>=10 else DAILY_LIMIT
+    if len(won_leads)>=10:
+        print("10+ Won records detected: reduced daily outreach limit to 2; research cadence remains active.")
     leads=api("/rest/v1/leads?"+urllib.parse.urlencode({
         "owner_id":"eq."+owner_id,"lead_status":"eq.qualified",
         "select":"id,company_name,contact_email,website_url,evidence_summary,evidence_url,payload",
@@ -71,7 +78,7 @@ def main():
     already={a.get("lead_id") for a in actions if a.get("lead_id")}
     sent=0; skipped=0; failures=0
     for lead in leads:
-        if sent>=DAILY_LIMIT: break
+        if sent>=daily_limit: break
         payload=lead.get("payload") if isinstance(lead.get("payload"),dict) else {}
         email=(lead.get("contact_email") or payload.get("email") or "").strip()
         website=lead.get("website_url") or payload.get("website") or ""
@@ -130,7 +137,7 @@ def main():
                       "Automatic initial inquiry failed; no success claimed",
                       {"lead_id":lead["id"],"recipient":email,"error":str(exc)[:400],"action_id":action_id})
 
-    msg=f"Automatic outreach finished: {sent} sent, {skipped} skipped, {failures} failed. Daily limit: {DAILY_LIMIT}. Each lead receives at most one automated initial email; no follow-ups, quotes or payment requests are sent."
+    msg=f"Automatic outreach finished: {sent} sent, {skipped} skipped, {failures} failed. Daily limit: {daily_limit}. Each lead receives at most one automated initial email; no follow-ups, quotes or payment requests are sent."
     print(msg)
     if summary_path:
         with open(summary_path,"a",encoding="utf-8") as f:f.write("\\n## Automatic outreach\\n\\n"+msg+"\\n")
