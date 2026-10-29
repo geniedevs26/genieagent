@@ -67,7 +67,8 @@ def main():
         "owner_id":"eq."+owner_id,"action_type":"eq.email",
         "select":"lead_id,recipient,approval_status","limit":"5000"
     }),key) or []
-    already={a.get("lead_id") for a in actions if a.get("approval_status") in ("sent","approved")}
+    # Treat any prior attempt as already contacted; this prevents duplicate emails after a timeout or partial failure.
+already={a.get("lead_id") for a in actions if a.get("lead_id")}
     sent=0; skipped=0; failures=0
     for lead in leads:
         if sent>=DAILY_LIMIT: break
