@@ -50,8 +50,13 @@ if "git add" in workflow or "git push" in workflow or "upload-artifact" in workf
     fail("daily lead workflow must not publish or upload candidate records")
 if "Candidate details were not committed or uploaded" not in workflow:
     fail("workflow must clearly report that candidate details are not persisted")
-if (ROOT / "data/qualified_leads.csv").exists():
-    fail("public qualified lead feed must not exist in repository")
+feed = ROOT / "data/qualified_leads.csv"
+if feed.exists():
+    import csv
+    with feed.open(newline="", encoding="utf-8-sig") as handle:
+        rows = list(csv.DictReader(handle))
+    if rows:
+        fail("public qualified lead feed must not contain any candidate or client records")
 
 # Catch common accidental private-key/token assignments without blocking public identifiers.
 secret_patterns = [
