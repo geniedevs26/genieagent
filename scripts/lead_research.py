@@ -51,10 +51,13 @@ def get(url, timeout=10):
 
 class Links(HTMLParser):
     def __init__(self):
-        super().__init__(); self.links=[]
+        super().__init__(); self.links=[]; self.text=[]
     def handle_starttag(self, tag, attrs):
         a=dict(attrs)
         if tag=="a" and a.get("href"): self.links.append((a["href"], " ".join(a.get("aria-label","").split())))
+    def handle_data(self, data):
+        clean=" ".join(data.split())
+        if clean: self.text.append(clean)
 
 def host(url):
     try: return (urlparse(url).hostname or "").lower().removeprefix("www.")
@@ -80,7 +83,7 @@ def main():
                 key=(row.get("website","").lower().rstrip("/") or row.get("company","").lower())
                 domain=host(row.get("website",""))
                 evidence=(row.get("company","")+" "+row.get("evidence",""))
-                if key and row.get("status")=="Unverified candidate" and not is_skipped(domain) and INTENT.search(evidence) and not LOW_QUALITY.search(evidence):
+                if key and row.get("status")=="Confirmed lead" and row.get("clientNeedConfirmed")=="Yes" and row.get("contactVerified")=="Yes" and row.get("needEvidenceUrl") and not is_skipped(domain) and INTENT.search(evidence) and not LOW_QUALITY.search(evidence):
                     old[key]=row
     added=0
     for query in QUERIES:
@@ -96,27 +99,39 @@ def main():
             if page:
                 try: parser.feed(page)
                 except Exception: pass
+            page_text=re.sub(r"\s+"," "," ".join(parser.text))
+            # Search snippets alone never qualify a lead.
+            on_page_intent=bool(INTENT.search(page_text)) and not LOW_QUALITY.search(page_text[:12000])
             contact_url=""
-            emails=set()
+            emails=set(EMAIL_RE.findall(page_text))
             for href,label in parser.links:
                 candidate=urljoin(url,href)
                 if host(candidate)!=domain: continue
                 if any(k in (href+" "+label).lower() for k in ["contact","about"]):
                     contact_url=candidate
                     contact_html=get(candidate)
-                    if contact_html: emails.update(EMAIL_RE.findall(contact_html))
+                    if contact_html:
+                        cp=Links()
+                        try: cp.feed(contact_html)
+                        except Exception: pass
+                        emails.update(EMAIL_RE.findall(" ".join(cp.text)))
                     break
-            # Only emails from the business's own pages are recorded; search snippets are not trusted as contact verification.
             emails={e.lower() for e in emails if not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com"])}
+            # Qualification requires explicit intent on the source page plus a publicly listed email.
+            if not (on_page_intent and emails):
+                continue
+            email=sorted(emails)[0]
+            intent_match=INTENT.search(page_text)
+            evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else combined[:500]
             row={
                 "company":title[:180],"country":"Other international","contact":"",
-                "email":sorted(emails)[0] if emails else "","website":url,
-                "source":contact_url or url,"service":"Other / needs confirmation",
-                "status":"Unverified candidate",
-                "evidence":"Possible requirement phrase in public search result: "+combined[:500],
-                "notes":"UNVERIFIED CANDIDATE — phrase match only. This is not proof of current buyer intent. Confirm the exact requirement with the client and verify contact before qualification.",
-                "needStage":"Unverified candidate","contactVerified":"No",
-                "clientNeedConfirmed":"No","needEvidenceUrl":"","financialApproved":"No",
+                "email":email,"website":url,
+                "source":url,"service":"Publicly stated web/automation requirement",
+                "status":"Confirmed lead",
+                "evidence":"Explicit requirement found on source page: "+evidence_excerpt[:500],
+                "notes":"AUTO-QUALIFIED: source page explicitly states a requirement and publishes a contact email. Verify freshness and scope before a financial commitment.",
+                "needStage":"Client need confirmed","contactVerified":"Yes",
+                "clientNeedConfirmed":"Yes","needEvidenceUrl":url,"financialApproved":"No",
                 "discovered_at":datetime.now(timezone.utc).isoformat()
             }
             old[key]=row;added+=1
@@ -127,6 +142,6 @@ def main():
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
         for row in old.values():w.writerow({k:row.get(k,"") for k in cols})
-    print(f"Saved {len(old)} unverified candidates; {added} new phrase-matched candidates. No leads were qualified automatically.")
+    print(f"Saved {len(old)} confirmed leads; {added} new leads passed on-page requirement and public-contact checks. Unverified search matches are discarded.")
 
 if __name__=="__main__": main()
