@@ -14,12 +14,44 @@ from xml.etree import ElementTree as ET
 from html.parser import HTMLParser
 
 OUT = "data/research_candidates.csv"
+# Broad, buyer-intent-focused searches across the user's actual deliverable services.
+# These are public-web searches; only pages with explicit requirement text and a public email pass.
 QUERIES = [
     '"looking for a web designer" business',
-    '"need a chatbot" company',
-    '"request for proposal" website development company',
-    '"seeking workflow automation" business',
-    '"website redesign project" "contact us" company',
+    '"looking for a web developer" website project',
+    '"need a website built" business contact',
+    '"website redesign" "looking for" company',
+    '"website development" "request for proposal"',
+    '"WordPress developer needed" business project',
+    '"Shopify website developer" "looking for"',
+    '"landing page design" "need a designer"',
+    '"web application development" "request for quote"',
+    '"mobile app development" "request for proposal"',
+    '"Android app developer" project company',
+    '"AI chatbot" "looking for a developer"',
+    '"chatbot development" "request for proposal"',
+    '"workflow automation" "looking for a consultant"',
+    '"Excel automation" "need help" business',
+    '"Excel dashboard" "request for proposal"',
+    '"data entry project" company "contact"',
+    '"data cleaning" "looking for a freelancer" business',
+    '"PowerPoint presentation design" "looking for"',
+    '"technical writer" "project" "contact us" company',
+    '"SEO services" "request for proposal" small business',
+    '"content writing" "looking for a writer" company project',
+    '"logo design" "request for quote" company',
+    '"graphic design project" "looking for a designer" business',
+    '"Telugu translation" project company contact',
+    '"English to Telugu translation" "looking for"',
+    '"localization services" "request for proposal"',
+    '"website maintenance" "looking for a developer" company',
+    '"automation developer" "request for quote"',
+    '"AI tool development" "looking for a developer"',
+    '"website developer wanted" business project',
+    '"seeking a chatbot developer" company',
+    '"small business website" "need a developer"',
+    '"RFP website design" small business',
+    '"RFP software development" small business',
 ]
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
 SKIP_DOMAINS = {
@@ -32,10 +64,15 @@ SKIP_DOMAINS = {
 }
 HEADERS = {"User-Agent": "GenieDevsLeadResearch/1.1 (public business requirement research)"}
 INTENT = re.compile(
-    r"looking for (a |an )?(web designer|web developer|website developer|chatbot|automation consultant)|"
-    r"need (a |an )?(chatbot|website redesign|web developer|automation)|"
-    r"request for proposal|request for quote|seeking (a |an )?(web designer|web developer|chatbot|automation)|"
-    r"website redesign project|developer wanted|chatbot developer wanted|automation consultant wanted",
+    r"looking for (a |an )?(web designer|web developer|website developer|website designer|chatbot|automation consultant|"
+    r"wordpress developer|shopify developer|designer|writer|technical writer|freelancer|translator|"
+    r"graphic designer|app developer|software developer|excel specialist|seo specialist)|"
+    r"need (a |an )?(chatbot|website redesign|web developer|website|web app|mobile app|android app|"
+    r"automation|wordpress developer|shopify developer|designer|writer|translator|excel dashboard|logo)|"
+    r"request for proposal|request for quote|request for bid|seeking (a |an )?(web designer|web developer|chatbot|"
+    r"automation|designer|writer|translator|app developer|wordpress developer|shopify developer)|"
+    r"website redesign project|developer wanted|chatbot developer wanted|automation consultant wanted|"
+    r"freelancer needed|designer needed|writer needed|translator needed|looking to hire a (web|software|app) developer",
     re.I
 )
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory", re.I)
@@ -135,9 +172,9 @@ def main():
                 "discovered_at":datetime.now(timezone.utc).isoformat()
             }
             old[key]=row;added+=1
-            if added>=20: break
+            if added>=50: break
             time.sleep(0.3)
-        if added>=20: break
+        if added>=50: break
     cols=["company","country","contact","email","website","source","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at"]
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
