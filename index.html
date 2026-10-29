@@ -47,7 +47,7 @@ body.authenticated>header{position:sticky;top:0;z-index:20;background:#0b1020f2;
 <nav class="quicknav" aria-label="Quick navigation"><a href="#leadForm">＋ Add lead</a><a href="#leadRows">Lead pipeline</a><a href="#draftPanel">Outreach drafts</a><a href="#financeForm">Income & costs</a><a href="#automationCard">Automation</a></nav>
 <main class="wrap">
 <div class="notice"><strong>Quick start:</strong> add or import a verified lead, select it, prepare a tailored draft, then record your action. Your lead records sync to your authenticated database. Email and calling remain review-before-send actions.</div>
-<section id="automationCard" class="panel"><div><h2>Daily lead research automation</h2><p><strong>Scheduled: 06:30 AM IST every day.</strong> Searches public web results for possible business requirements.</p><p class="muted">Current mode: privacy-safe research summary only. Candidate details are not yet synced into the CRM automatically; review the latest run before adding verified leads.</p></div><button id="automationOpenBtn" class="primary">Open latest run ↗</button></section>
+<section id="automationCard" class="panel"><div><h2>Daily lead research automation</h2><p><strong>Scheduled: 06:30 AM IST every day.</strong> Searches public web results for possible business requirements.</p><p class="muted">After the two owner-only GitHub secrets are configured, new candidates sync into your private CRM automatically as Researching / unverified. Until then, the workflow reports a count only. Every candidate still needs manual verification.</p></div><button id="automationOpenBtn" class="primary">Open latest run ↗</button></section>
 <section class="stats"><div class="stat"><small>Total leads</small><strong id="totalStat">0</strong></div><div class="stat"><small>Ready to contact</small><strong id="readyStat">0</strong></div><div class="stat"><small>Contacted</small><strong id="contactedStat">0</strong></div><div class="stat"><small>Replies</small><strong id="replyStat">0</strong></div></section>
 <section class="panel"><h2>Permission and deal workflow</h2>
 <ol>
@@ -58,7 +58,7 @@ body.authenticated>header{position:sticky;top:0;z-index:20;background:#0b1020f2;
 <li><strong>Financial approval:</strong> block proposals until revenue, all costs, positive expected net profit, scope, budget, payment terms, and pricing evidence are checked.</li>
 <li><strong>Log and continue:</strong> record provider results and ask again before the next external action.</li>
 </ol>
-<p class="notice"><strong>Integration status:</strong> secure private storage and outbound email/calling providers are not connected yet. The app must not claim a message was sent or a call placed without provider confirmation. Never store API keys in this page or public GitHub files.</p></section>
+<p class="notice"><strong>Integration status:</strong> Supabase stores CRM records after owner sign-in. Daily candidate sync activates after the GitHub secrets are added. Email sending and automated calling providers are not connected; the app must never claim a message was sent or a call placed without provider confirmation. Never store API keys in this page or public GitHub files.</p></section>
 <section class="panel" style="margin:14px 0"><h2>Free-first service catalogue</h2>
 <p class="muted">Start with services deliverable using free tiers, open-source tools, and existing skills. If a client needs a paid API, hosting, domain, or subscription, quote it separately and get approval before spending.</p>
 <div class="fields">
