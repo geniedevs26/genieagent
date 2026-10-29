@@ -1,38 +1,42 @@
 # GenieAgent
 
-Owner-only client acquisition dashboard for research, lead tracking, outreach drafts, and a simple income/expense ledger.
+Owner-only automated client acquisition system: scheduled public research, strict lead qualification, private CRM sync, audit trail, and financial approval gate.
 
-## Live app
-- Cloudflare Pages: https://genieagent.pages.dev/
+## Live app and source
+- Live dashboard: https://genieagent.pages.dev/
 - Repository: https://github.com/geniedevs26/genieagent
+- Daily workflow: https://github.com/geniedevs26/genieagent/actions/workflows/daily-lead-research.yml
 
-## Dashboard
-- Sign in using the owner account created in Supabase Authentication. Public account creation is disabled.
-- Lead records sync to the authenticated Supabase database when cloud access is available; CSV import/export is available for backup.
-- Use the quick navigation for Add lead, Lead pipeline, Outreach drafts, Income & costs, and Automation.
-- Outreach tools prepare drafts and open local email/calling apps. They do not automatically send messages or place calls.
-- Opt-out / not-interested states block outreach drafts. Verify actual requirements and contact details before treating any research result as a lead.
+## Automated workflow
+1. GitHub Actions runs daily at **01:00 UTC / 06:30 India time**.
+2. Public search results are discovery hints only. A record qualifies only if the actual source page contains a requirement phrase and publishes a contact email; search snippets alone are discarded.
+3. Only qualified leads sync to the owner's private Supabase CRM. Unverified candidates are not inserted into the CRM.
+4. Every confirmed lead automatically receives a **pending financial approval** record. Revenue, tool/API costs, fees, delivery costs, contingency, tax reserve, scope, budget, payment terms and current price evidence must pass the financial gate before a quote or paid commitment.
+5. Inserts, updates and deletes for leads, outreach actions, finance entries, workflow runs and financial approvals are captured in `automation_events`. The dashboard displays the latest audit events and financial approval queue.
+6. Duplicate website records are skipped. Existing CRM records are not overwritten by research sync.
 
-## Daily research automation
-GitHub Actions runs the public-web candidate research workflow daily at **01:00 UTC / 06:30 India time**. It can also be started manually from **Actions → Daily public lead research → Run workflow**.
+## One-time setup
+In GitHub **Settings → Secrets and variables → Actions → New repository secret**, configure:
+- `SUPABASE_SERVICE_ROLE_KEY`: Supabase project server-side service-role/secret key. Keep it secret; never paste it in chat or commit it.
+- `GENIE_OWNER_EMAIL`: exact email of the owner account in Supabase Authentication.
 
-The workflow searches public web results and writes candidate rows only to the temporary runner. It publishes a safe run summary/count only; it does **not** publish contact details, save candidate rows into the CRM, or qualify prospects automatically. The dashboard's **Daily Automation** button opens the workflow page.
+Without those two secrets, the workflow safely skips private CRM sync. No recurring manual lead entry is intended; lead research and qualifying records are automated after this one-time setup.
 
-### Current automation boundary
-The daily public-web research schedule is active. The workflow now supports automatic owner-scoped syncing into the private Supabase CRM when these two repository secrets are configured: `SUPABASE_SERVICE_ROLE_KEY` and `GENIE_OWNER_EMAIL`. In GitHub, open **Settings → Secrets and variables → Actions → New repository secret**. Add `SUPABASE_SERVICE_ROLE_KEY` using the Supabase project’s service-role/secret key (Project Settings → API Keys) and `GENIE_OWNER_EMAIL` using the exact email of the owner’s Supabase Auth account. Never paste the service key into chat or commit it to the repository. If either secret is missing, the workflow safely skips syncing and reports that status; the research run still completes. Once configured, the workflow inserts only new unverified candidates into the owner’s CRM, skips existing website matches, and does not overwrite existing leads or mark candidates qualified. Do not upload lead lists or credentials into this public repository.
+## Financial permission boundary
+Financial approvals are deliberately **not automatic**. Confirm the real project scope, client budget/payment, revenue, all costs, net profit, pricing evidence and payment terms before approving. Discovery alone cannot approve spending or a quote. Approval is recorded in the private database and audit history.
 
-## Security and costs
-- Never commit API keys, passwords, client contact lists, or private lead data.
-- `_headers` adds browser/security headers and no-index hints; those headers are not a login system.
-- Keep Supabase RLS enabled and verify owner-only policies before changing database access.
-- Use free tiers where suitable. Disclose any paid API, hosting, domain, or recurring service cost before a client commits.
-- Every external email, call, proposal, and follow-up needs a separate review and explicit approval. Automated outbound actions are not enabled.
-- The agreement output is a discussion draft, not legal advice.
+## Outbound actions
+Automatic client email/calling is **not yet connected**. The current dashboard can prepare/record outreach, but it must not claim that a message was sent or a call completed without a configured provider's confirmation. To make outbound actions automatic, a legitimate sender/provider and its secret must be configured; do not send proposals or commit funds before financial approval.
 
-## Run research locally
+## Security and records
+- Supabase RLS restricts database rows to the authenticated owner.
+- Public repository files must not contain lead lists, credentials, API keys or private customer information.
+- Export CSV is a backup convenience, not the source of truth; Supabase plus `automation_events` is the persistent record.
+- Research is limited by public-page availability and matching evidence; zero results is preferable to inventing confirmed buyer intent.
+
+## Run locally
 ```bash
 python scripts/lead_research.py
 ```
 
-## Deploy
-Cloudflare Pages should be connected to this GitHub repository with framework preset **None**, no build command, and repository root (`/`) as the build output directory. A new commit triggers deployment when the Pages Git integration is active.
+Cloudflare Pages should use framework preset **None**, no build command, and `/` as the output directory. A new commit deploys when the Pages Git integration is active.
