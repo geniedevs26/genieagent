@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GenieAgent Lead Feed</title>
+<style>body{font:16px system-ui;max-width:1100px;margin:2rem auto;padding:0 1rem;background:#101827;color:#edf3ff}input,button{padding:.7rem;margin:.3rem;background:#20324b;color:white;border:1px solid #456;border-radius:8px}table{width:100%;border-collapse:collapse;margin-top:1rem}td,th{text-align:left;padding:.7rem;border-bottom:1px solid #456;vertical-align:top}a{color:#8bb8ff}.muted{color:#aab8cf}</style>
+<h1>GenieAgent — Automatic Lead Feed</h1><p class="muted">Public-web candidates from the daily research workflow. Verify each business and its specific opportunity before outreach.</p>
+<input id="search" placeholder="Filter leads"><button id="reload">Refresh feed</button><span id="status">Loading…</span>
+<table><thead><tr><th>Business</th><th>Country / service</th><th>Public email</th><th>Evidence / notes</th></tr></thead><tbody id="rows"></tbody></table>
+<script>
+const url='https://raw.githubusercontent.com/geniedevs26/genieagent/main/data/auto_leads.csv';let leads=[];
+function csv(s){let a=[],r=[],v='',q=false;for(let i=0;i<s.length;i++){let c=s[i];if(q&&c=='"'&&s[i+1]=='"'){v+='"';i++}else if(c=='"')q=!q;else if(c==','&&!q){r.push(v);v=''}else if((c=='\n'||c=='\r')&&!q){if(c=='\r'&&s[i+1]=='\n')i++;r.push(v);if(r.some(x=>x))a.push(r);r=[];v=''}else v+=c}if(v||r.length){r.push(v);a.push(r)}let h=(a.shift()||[]).map(x=>x.replace(/^\uFEFF/,''));return a.map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]||''])))}
+function esc(x){return String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function draw(){let q=document.querySelector('#search').value.toLowerCase();let a=leads.filter(x=>Object.values(x).join(' ').toLowerCase().includes(q));document.querySelector('#rows').innerHTML=a.map(x=>'<tr><td><b>'+esc(x.company)+'</b><br><a href="'+esc(x.website)+'" target="_blank" rel="noopener">'+esc(x.website)+'</a><br><span class="muted">'+esc(x.status)+'</span></td><td>'+esc(x.country)+'<br>'+esc(x.service)+'</td><td>'+(x.email?'<a href="mailto:'+esc(x.email)+'">'+esc(x.email)+'</a>':'Not found')+'<br><a href="'+esc(x.source||x.website)+'" target="_blank" rel="noopener">Source</a></td><td>'+esc(x.evidence)+'<br><span class="muted">'+esc(x.notes)+'</span></td></tr>').join('');document.querySelector('#status').textContent=' '+a.length+' shown / '+leads.length+' total candidates'}
+async function load(){document.querySelector('#status').textContent='Fetching…';try{let r=await fetch(url+'?t='+Date.now());if(!r.ok)throw Error('CSV feed not available yet; run the daily GitHub workflow first.');leads=csv(await r.text());draw()}catch(e){document.querySelector('#status').textContent=e.message}}
+document.querySelector('#reload').onclick=load;document.querySelector('#search').oninput=draw;load();
+</script></html>
