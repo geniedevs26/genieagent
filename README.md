@@ -38,7 +38,7 @@ python scripts/lead_research.py
 - Browser localStorage only; browser records do not sync between devices.
 
 ## Current boundaries
-The new workflow performs scheduled public-web candidate research and stores results in `data/auto_leads.csv`. It does not send emails, place phone calls, or automatically merge the CSV into the browser's lead list. Those actions require separate service integrations and credentials. No paid keys or credentials are included.
+The scheduled workflow searches public web results and writes candidate rows to `data/research_candidates.csv` only inside its temporary GitHub Actions runner. The workflow reports a count in the Actions summary and does not commit or upload candidate details. There is currently no persistent private lead database and no qualified-lead feed; the app's lead-loader button reports this state. Use manual verification and the app's Add a lead / Import CSV functions until private storage is configured. The workflow does not send emails or place calls.
 
 ## Privacy and security
 Do not enter passwords, payment details, or sensitive personal information. Export CSV backups regularly. Review candidates and drafts before outreach. The agreement output is a discussion draft, not legal advice.
