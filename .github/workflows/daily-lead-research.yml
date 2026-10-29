@@ -8,7 +8,7 @@ on:
       - 'scripts/auto_outreach.py'
       - '.github/workflows/daily-lead-research.yml'
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 */4 * * *"
   workflow_dispatch:
 
 # Keep generated lead records out of a public repository.
