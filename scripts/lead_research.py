@@ -76,7 +76,10 @@ def main():
         with open(OUT,newline="",encoding="utf-8-sig") as f:
             for row in csv.DictReader(f):
                 key=(row.get("website","").lower().rstrip("/") or row.get("company","").lower())
-                if key and row.get("status")=="Unverified candidate": old[key]=row
+                domain=host(row.get("website",""))
+                evidence=(row.get("company","")+" "+row.get("evidence",""))
+                if key and row.get("status")=="Unverified candidate" and not is_skipped(domain) and INTENT.search(evidence) and not LOW_QUALITY.search(evidence):
+                    old[key]=row
     added=0
     for query in QUERIES:
         for title,url,snippet in search(query):
