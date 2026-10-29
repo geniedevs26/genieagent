@@ -200,6 +200,28 @@ def main():
             payload=rows,
             prefer="return=minimal",
         )
+        # Create a pending financial gate for each newly confirmed lead. No quote,
+        # paid tool, or client commitment is authorized by discovery alone.
+        finance_rows = []
+        for row in rows:
+            finance_rows.append({
+                "owner_id": owner_id,
+                "lead_id": row["id"],
+                "approval_type": "quote",
+                "approval_status": "pending",
+                "currency": row["payload"].get("dealCurrency", "USD"),
+                "proposed_revenue": 0,
+                "estimated_costs": 0,
+                "scope_summary": "Confirm the client's exact requested deliverable, scope, budget, payment terms and timeline before approving a quote.",
+                "cost_breakdown": {"tools": 0, "fees": 0, "delivery": 0, "contingency": 0, "tax_reserve": 0},
+                "evidence_url": row.get("evidence_url"),
+                "payment_terms": None,
+            })
+        if finance_rows:
+            request_json(
+                f"{SUPABASE_URL}/rest/v1/financial_approvals",
+                key, method="POST", payload=finance_rows, prefer="return=minimal",
+            )
     finished = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
     message = f"Daily run complete: {len(all_rows)} source rows reviewed; {len(candidates)} passed the strict confirmation gate; {len(rows)} new confirmed leads inserted; {len(candidates) - len(rows)} skipped as duplicates."
     request_json(
