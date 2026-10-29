@@ -6,7 +6,7 @@ SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, GENIE_SENDER_EMAIL.
 Set AUTO_OUTREACH_ENABLED=true only after verifying the sender and local rules.
 Never sends proposals, quotes, payment requests, or follow-ups.
 """
-import json, os, smtplib, sys, urllib.parse, urllib.request, urllib.error
+import json, os, smtplib, sys, uuid, urllib.parse, urllib.request, urllib.error
 from datetime import datetime, timezone
 from email.message import EmailMessage
 
@@ -96,35 +96,35 @@ def main():
             "If this is no longer relevant or you prefer no further contact, reply with “No further contact” and I will suppress further outreach.\n\n"
             "Regards,\nSiva Satya Prasad\nGenieDevs\n"+website+"\n"
         )
+        action_id=str(uuid.uuid4())
+        # Persist a pending action before sending. If logging fails, do not send.
+        api("/rest/v1/outreach_actions",key,"POST",{
+            "id":action_id,"owner_id":owner_id,"lead_id":lead["id"],"action_type":"email",
+            "draft_subject":message["Subject"],"draft_body":message.get_content(),
+            "recipient":email,"approval_status":"pending",
+            "result_notes":"Queued for one-time automatic initial inquiry; strict qualification passed."
+        },"return=minimal")
         try:
             with smtplib.SMTP(smtp_host,smtp_port,timeout=25) as server:
                 server.starttls()
                 server.login(smtp_user,smtp_pass)
                 server.send_message(message)
             now=datetime.now(timezone.utc).isoformat()
-            api("/rest/v1/outreach_actions",key,"POST",{
-                "owner_id":owner_id,"lead_id":lead["id"],"action_type":"email",
-                "draft_subject":message["Subject"],"draft_body":message.get_content(),
-                "recipient":email,"approval_status":"sent","executed_at":now,
-                "result_notes":"Automatically sent after strict public requirement/contact qualification. Initial inquiry only; no quote or paid commitment."
+            api("/rest/v1/outreach_actions?id=eq."+action_id,key,"PATCH",{
+                "approval_status":"sent","executed_at":now,
+                "result_notes":"SMTP accepted the initial inquiry. This records provider acceptance, not a guarantee of inbox delivery."
             },"return=minimal")
             event(key,owner_id,"automated_initial_email","sent",
-                  "Initial inquiry sent to a confirmed public requirement",
-                  {"lead_id":lead["id"],"recipient":email,"website":website,"subject":message["Subject"]})
+                  "Initial inquiry accepted by SMTP provider",
+                  {"lead_id":lead["id"],"recipient":email,"website":website,"subject":message["Subject"],"action_id":action_id})
             already.add(lead["id"]);sent+=1
         except Exception as exc:
             failures+=1
-            event(key,owner_id,"automated_initial_email","failed",
-                  "Automatic initial inquiry failed; no success claimed",
-                  {"lead_id":lead["id"],"recipient":email,"error":str(exc)[:400]})
-    msg=f"Automatic outreach finished: {sent} sent, {skipped} skipped, {failures} failed. Daily limit: {DAILY_LIMIT}. Each lead receives at most one automated initial email; no follow-ups, quotes or payment requests are sent."
-    print(msg)
-    if summary_path:
-        with open(summary_path,"a",encoding="utf-8") as f:f.write("\n## Automatic outreach\n\n"+msg+"\n")
-    return 0
-
-if __name__=="__main__":
-    try: sys.exit(main())
-    except Exception as exc:
-        print("Automatic outreach failed safely: "+str(exc),file=sys.stderr)
-        sys.exit(1)
+            try:
+                api("/rest/v1/outreach_actions?id=eq."+action_id,key,"PATCH",{
+                    "approval_status":"failed","result_notes":"SMTP send failed: "+str(exc)[:350]
+                },"return=minimal")
+            finally:
+                event(key,owner_id,"automated_initial_email","failed",
+                      "Automatic initial inquiry failed; no success claimed",
+                      {"lead_id":lead["id"],"recipient":email,"error":str(exc)[:400],"action_id":action_id})
