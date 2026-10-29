@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'scripts/lead_research.py'
+      - 'scripts/sync_candidates_supabase.py'
       - '.github/workflows/daily-lead-research.yml'
   schedule:
     - cron: "0 1 * * *"
