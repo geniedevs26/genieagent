@@ -20,13 +20,13 @@ In GitHub **Settings → Secrets and variables → Actions → New repository se
 - `SUPABASE_SERVICE_ROLE_KEY`: Supabase project server-side service-role/secret key. Keep it secret; never paste it in chat or commit it.
 - `GENIE_OWNER_EMAIL`: exact email of the owner account in Supabase Authentication.
 
-Without those two secrets, the workflow safely skips private CRM sync. No recurring manual lead entry is intended; lead research and qualifying records are automated after this one-time setup.
+Without those two secrets, the workflow safely skips private CRM sync. No recurring manual lead entry is intended; lead research and qualifying records are automated after this one-time setup. For automatic one-time initial email outreach (maximum 5/day, confirmed leads only), also add `SMTP_HOST`, `SMTP_PORT` (normally `587`), `SMTP_USERNAME`, `SMTP_PASSWORD`, `GENIE_SENDER_EMAIL`, and `AUTO_OUTREACH_ENABLED` with value `true`. Use an SMTP account you control; for Gmail, use an App Password if your account supports it, never your normal password. The sender must be authorized to send from `GENIE_SENDER_EMAIL`. If any sender setting is missing, outreach safely skips. Every send attempt is logged before execution; only initial inquiries are sent—no automatic follow-ups, quotes, or payment requests.
 
 ## Financial permission boundary
 Financial approvals are deliberately **not automatic**. Confirm the real project scope, client budget/payment, revenue, all costs, net profit, pricing evidence and payment terms before approving. Discovery alone cannot approve spending or a quote. Approval is recorded in the private database and audit history.
 
 ## Outbound actions
-Automatic client email/calling is **not yet connected**. The current dashboard can prepare/record outreach, but it must not claim that a message was sent or a call completed without a configured provider's confirmation. To make outbound actions automatic, a legitimate sender/provider and its secret must be configured; do not send proposals or commit funds before financial approval.
+Automatic email outreach is wired into the daily workflow but remains inactive until the SMTP secrets above are configured. It sends at most five initial emails per day to leads passing the strict qualification gate, checks previous outreach logs to avoid repeats, and records provider acceptance/failure. Automatic calling is not connected. Quotes, proposals involving commitments, paid tools and spending remain blocked until financial approval.
 
 ## Security and records
 - Supabase RLS restricts database rows to the authenticated owner.
