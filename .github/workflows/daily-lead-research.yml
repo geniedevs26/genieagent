@@ -1,0 +1,38 @@
+name: Daily public lead research
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-public-lead-research
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Discover public business candidates
+        run: python scripts/lead_research.py
+      - name: Commit updated candidate list
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/auto_leads.csv
+          if ! git diff --cached --quiet; then
+            git commit -m "Update daily public lead research"
+            git push
+          else
+            echo "No lead file changes to commit."
+          fi
