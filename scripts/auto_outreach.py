@@ -42,7 +42,7 @@ def main():
     owner_email=os.getenv("GENIE_OWNER_EMAIL","").strip().lower()
     enabled=os.getenv("AUTO_OUTREACH_ENABLED","").strip().lower()=="true"
     smtp_host=os.getenv("SMTP_HOST","").strip()
-    smtp_port=int(os.getenv("SMTP_PORT","587"))
+    smtp_port=int(os.getenv("SMTP_PORT") or "587")
     smtp_user=os.getenv("SMTP_USERNAME","").strip()
     smtp_pass=os.getenv("SMTP_PASSWORD","").strip()
     sender=os.getenv("GENIE_SENDER_EMAIL","").strip()
