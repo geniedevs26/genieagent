@@ -87,7 +87,38 @@ def main():
     owner_id = owner["id"]
 
     with open(CSV_PATH, newline="", encoding="utf-8-sig") as source:
-        candidates = list(csv.DictReader(source))
+        all_rows = list(csv.DictReader(source))
+    # Strict gate: only explicitly confirmed requirements with a public contact
+    # and a source-evidence URL may enter the CRM.
+    candidates = [
+        item for item in all_rows
+        if item.get("status") == "Confirmed lead"
+        and item.get("clientNeedConfirmed") == "Yes"
+        and item.get("contactVerified") == "Yes"
+        and (item.get("needEvidenceUrl") or "").startswith("http")
+        and (item.get("email") or "").strip()
+        and (item.get("evidence") or "").strip()
+    ]
+    run_id = str(uuid.uuid4())
+    started = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+    request_json(
+        f"{SUPABASE_URL}/rest/v1/agent_runs",
+        key,
+        method="POST",
+        payload={"id": run_id, "owner_id": owner_id, "workflow_name": "daily_confirmed_lead_research",
+                 "run_status": "running", "started_at": started,
+                 "summary": "Daily research started; only explicit on-page buyer intent with public contact can qualify."},
+        prefer="return=minimal",
+    )
+    request_json(
+        f"{SUPABASE_URL}/rest/v1/automation_events",
+        key, method="POST",
+        payload={"owner_id": owner_id, "event_type": "research_started", "entity_table": "agent_runs",
+                 "entity_id": run_id, "event_status": "running",
+                 "summary": "Daily confirmed-lead research started",
+                 "details": {"workflow": "daily_confirmed_lead_research", "source_rows": len(all_rows)}},
+        prefer="return=minimal",
+    )
 
     query = urllib.parse.urlencode({
         "owner_id": "eq." + owner_id,
@@ -121,14 +152,26 @@ def main():
             "website": item.get("website") or "",
             "source": item.get("source") or item.get("website") or "",
             "service": item.get("service") or "Other / needs confirmation",
-            "status": "Researching",
-            "evidence": item.get("evidence") or "Public search phrase match; verify before outreach.",
-            "notes": "UNVERIFIED CANDIDATE — research phrase match only. Confirm current buyer intent and contact details before qualification.",
-            "needStage": "Unverified candidate",
-            "contactVerified": "No",
-            "clientNeedConfirmed": "No",
-            "needEvidenceUrl": "",
+            "status": "Ready",
+            "evidence": item.get("evidence") or "",
+            "notes": "AUTO-QUALIFIED from explicit public requirement text and a published contact. Verify freshness and financials before any quote or spending.",
+            "needStage": "Client need confirmed",
+            "contactVerified": "Yes",
+            "clientNeedConfirmed": "Yes",
+            "needEvidenceUrl": item.get("needEvidenceUrl") or item.get("source") or "",
             "financialApproved": "No",
+            "scopeConfirmed": "No",
+            "clientBudgetConfirmed": "No",
+            "externalCostsVerified": "No",
+            "paymentTerms": "",
+            "costEvidenceUrl": "",
+            "dealRevenue": "0",
+            "toolCost": "0",
+            "paymentFees": "0",
+            "deliveryCost": "0",
+            "contingency": "0",
+            "taxReserve": "0",
+            "dealCurrency": "USD",
             "created": now[:10],
             "updated": now[:10],
             "activity": [{"date": now[:10], "text": "Added by daily public-web research. Candidate is unverified; verify before outreach."}],
@@ -143,7 +186,7 @@ def main():
             "service_need": item.get("service") or None,
             "evidence_summary": item.get("evidence") or None,
             "evidence_url": item.get("source") or item.get("website") or None,
-            "lead_status": "research",
+            "lead_status": "qualified",
             "payload": payload,
             "updated_at": now,
         })
@@ -157,7 +200,24 @@ def main():
             payload=rows,
             prefer="return=minimal",
         )
-    message = f"Private CRM sync complete: {len(rows)} new unverified candidates added; {len(candidates) - len(rows)} skipped (existing website or missing fields). No lead was qualified automatically."
+    finished = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+    message = f"Daily run complete: {len(all_rows)} source rows reviewed; {len(candidates)} passed the strict confirmation gate; {len(rows)} new confirmed leads inserted; {len(candidates) - len(rows)} skipped as duplicates."
+    request_json(
+        f"{SUPABASE_URL}/rest/v1/agent_runs?id=eq.{run_id}",
+        key, method="PATCH",
+        payload={"run_status": "completed", "finished_at": finished,
+                 "candidates_found": len(all_rows), "qualified_count": len(rows), "summary": message},
+        prefer="return=minimal",
+    )
+    request_json(
+        f"{SUPABASE_URL}/rest/v1/automation_events",
+        key, method="POST",
+        payload={"owner_id": owner_id, "event_type": "research_completed", "entity_table": "agent_runs",
+                 "entity_id": run_id, "event_status": "completed", "summary": message,
+                 "details": {"source_rows": len(all_rows), "passed_confirmation_gate": len(candidates),
+                             "new_leads_inserted": len(rows), "duplicates_skipped": len(candidates) - len(rows)}},
+        prefer="return=minimal",
+    )
     print(message)
     if summary_path:
         with open(summary_path, "a", encoding="utf-8") as out:
