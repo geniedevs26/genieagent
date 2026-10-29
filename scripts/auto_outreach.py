@@ -128,3 +128,16 @@ def main():
                 event(key,owner_id,"automated_initial_email","failed",
                       "Automatic initial inquiry failed; no success claimed",
                       {"lead_id":lead["id"],"recipient":email,"error":str(exc)[:400],"action_id":action_id})
+
+    msg=f"Automatic outreach finished: {sent} sent, {skipped} skipped, {failures} failed. Daily limit: {DAILY_LIMIT}. Each lead receives at most one automated initial email; no follow-ups, quotes or payment requests are sent."
+    print(msg)
+    if summary_path:
+        with open(summary_path,"a",encoding="utf-8") as f:f.write("\\n## Automatic outreach\\n\\n"+msg+"\\n")
+    return 0
+
+
+if __name__=="__main__":
+    try: sys.exit(main())
+    except Exception as exc:
+        print("Automatic outreach failed safely: "+str(exc),file=sys.stderr)
+        sys.exit(1)
