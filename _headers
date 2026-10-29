@@ -3,3 +3,14 @@
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+  X-Robots-Tag: noindex, nofollow, noarchive
+
+/index.html
+  Cache-Control: no-store
+
+/auto-leads.html
+  Cache-Control: no-store
+
+/data/*
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store
