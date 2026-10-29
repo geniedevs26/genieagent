@@ -44,7 +44,14 @@ def request_json(url, key, method="GET", payload=None, prefer=None):
 
 
 def norm_url(value):
-    return (value or "").strip().lower().rstrip("/")
+    raw = (value or "").strip().lower()
+    if not raw:
+        return ""
+    parsed = urllib.parse.urlsplit(raw if "://" in raw else "//" + raw)
+    host = (parsed.netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host + (parsed.path or "").rstrip("/")
 
 
 def main():
