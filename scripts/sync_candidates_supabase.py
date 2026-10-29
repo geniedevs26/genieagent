@@ -51,7 +51,7 @@ def norm_url(value):
     host = (parsed.netloc or "").lower()
     if host.startswith("www."):
         host = host[4:]
-    return host + (parsed.path or "").rstrip("/")
+    return host
 
 
 def main():
