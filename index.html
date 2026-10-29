@@ -12,7 +12,7 @@ header{padding:24px clamp(16px,4vw,48px);border-bottom:1px solid var(--line);dis
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-#authPanel{max-width:460px;margin:8vh auto;padding:24px;background:#121a2d;border:1px solid #2a3855;border-radius:16px}#authPanel input{width:100%;margin:6px 0 12px;padding:11px;background:#0b1324;border:1px solid #2a3855;color:#edf3ff;border-radius:9px}#authMessage{white-space:pre-wrap;color:#9aabc8;margin-top:10px}.auth-actions{display:flex;gap:8px;flex-wrap:wrap}
+body:not(.authenticated)>header,body:not(.authenticated)>main{display:none!important}body.authenticated #authPanel{display:none!important}#authPanel{max-width:460px;margin:8vh auto;padding:24px;background:#121a2d;border:1px solid #2a3855;border-radius:16px}#authPanel input{width:100%;margin:6px 0 12px;padding:11px;background:#0b1324;border:1px solid #2a3855;color:#edf3ff;border-radius:9px}#authMessage{white-space:pre-wrap;color:#9aabc8;margin-top:10px}.auth-actions{display:flex;gap:8px;flex-wrap:wrap}
 </style>
 </head>
 <body>
