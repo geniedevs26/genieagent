@@ -117,7 +117,7 @@ INTENT = re.compile(
 )
 PAID_SIGNAL = re.compile(r"\b(?:paid project|paid work|budget(?:ed)?|project budget|hiring|looking to hire|hire|contract(?:or)?|commission|compensation|rate|quote|request for quote|payment|pay for|fee|funded)\b", re.I)
 UNPAID_SIGNAL = re.compile(r"\b(?:unpaid|volunteer|equity only|no budget|not paid|free work)\b", re.I)
-LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download", re.I)
+LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download|what is an? |how to create|how to build|step-by-step|ultimate guide|rfp template|proposal template|blog post|case study", re.I)
 
 def get(url, timeout=5, attempts=2):
     # Search engines are tried independently; search calls can disable retries
@@ -136,12 +136,19 @@ def get(url, timeout=5, attempts=2):
     return ""
 
 class Links(HTMLParser):
+    """Extract visible page text only; never treat JavaScript/CSS as buyer evidence."""
+    HIDDEN_TAGS = {"script", "style", "noscript", "svg", "template", "iframe"}
     def __init__(self):
-        super().__init__(); self.links=[]; self.text=[]
+        super().__init__(); self.links=[]; self.text=[]; self.hidden_depth=0
     def handle_starttag(self, tag, attrs):
+        if tag in self.HIDDEN_TAGS: self.hidden_depth += 1
         a=dict(attrs)
-        if tag=="a" and a.get("href"): self.links.append((a["href"], " ".join(a.get("aria-label","").split())))
+        if not self.hidden_depth and tag=="a" and a.get("href"):
+            self.links.append((a["href"], " ".join(a.get("aria-label","").split())))
+    def handle_endtag(self, tag):
+        if tag in self.HIDDEN_TAGS: self.hidden_depth=max(0,self.hidden_depth-1)
     def handle_data(self, data):
+        if self.hidden_depth: return
         clean=" ".join(data.split())
         if clean: self.text.append(clean)
 
