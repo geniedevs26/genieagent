@@ -47,6 +47,7 @@ jobs:
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           GENIE_SENDER_EMAIL: ${{ secrets.GENIE_SENDER_EMAIL }}
+          SUPPRESSED_EMAILS: ${{ secrets.SUPPRESSED_EMAILS }}
         run: python scripts/auto_outreach.py
       - name: Report safe research summary
         run: |
