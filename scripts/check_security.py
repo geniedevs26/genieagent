@@ -121,6 +121,15 @@ for path in ROOT.rglob("*"):
         if re.search(pattern,content):
             fail(f"possible secret material detected in {path.relative_to(ROOT)}")
 
-print("PASS: auth gate, research-stage separation, private CRM, audit trail, financial gate, guarded outreach, and secret-pattern checks.")
+if 'AUTO_OUTREACH_ENABLED: "false"' not in workflow:
+    fail("outbound email must remain disabled until independent lead verification is implemented")
+if 'HIDDEN_TAGS = {"script", "style"' not in research:
+    fail("research parser must exclude script/style and other non-visible page content")
+if 'PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"' not in outreach:
+    fail("outreach draft must include the verified portfolio URL")
+if 'NON_BUYER_PUBLISHERS = {"hubspot.com"}' not in outreach:
+    fail("known non-buyer publisher block missing")
+
+print("PASS: auth gate, visible-text-only research, paused outbound, private CRM, audit trail, financial gate, and secret-pattern checks.")
 
 # Regression policy is maintained alongside the research-first qualification workflow.
