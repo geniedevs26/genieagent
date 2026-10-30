@@ -110,7 +110,7 @@ for item in [
     "financial_proposal_send","agreement_send","project_start","order_close",
     'mail.search(None,"SINCE",since,"FROM",',"search_senders=set(sent_by_recipient)|{\"mailer-daemon\",\"postmaster\"}","recent[-100:]","stable_id",
     '"client_accepted_at":None',
-    "accepted_terms.get('proposed_revenue')","accepted_terms.get('payment_terms')",
+    'accepted_terms.get("proposed_revenue")','accepted_terms.get("payment_terms")',
     '"agreed_amount":accepted_terms.get("proposed_revenue")',
     '"action_type":"in.(email,follow_up,proposal,financial_proposal_send,agreement,agreement_send,milestone_delivery,final_delivery,inbound_reply)"',
 ]:
