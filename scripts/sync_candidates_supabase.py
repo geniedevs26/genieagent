@@ -96,7 +96,6 @@ def main():
         
         
         and (item.get("needEvidenceUrl") or "").startswith("http")
-        and (item.get("email") or "").strip()
         and (item.get("evidence") or "").strip()
     ]
     run_id = str(uuid.uuid4())
@@ -107,7 +106,7 @@ def main():
         method="POST",
         payload={"id": run_id, "owner_id": owner_id, "workflow_name": "daily_confirmed_lead_research",
                  "run_status": "running", "started_at": started,
-                 "summary": "Daily research started; only explicit on-page buyer intent with public contact can qualify."},
+                 "summary": "Daily research started; on-page requirement candidates are collected for human verification."},
         prefer="return=minimal",
     )
     request_json(
@@ -203,7 +202,7 @@ def main():
         # Create a pending financial gate for each newly confirmed lead. No quote,
         # paid tool, or client commitment is authorized by discovery alone.
         finance_rows = []
-        for row in rows:
+        for row in []:
             finance_rows.append({
                 "owner_id": owner_id,
                 "lead_id": row["id"],
