@@ -80,7 +80,8 @@ SKIP_DOMAINS = {
     "thefreedictionary.com","merriam-webster.com","dictionary.com","thesaurus.com",
     "indeed.com","glassdoor.com","ziprecruiter.com","monster.com","simplyhired.com",
     "yelp.com","yellowpages.com","crunchbase.com","zoominfo.com","clutch.co",
-    "upwork.com","fiverr.com","reddit.com","quora.com","medium.com"
+    "upwork.com","fiverr.com","reddit.com","quora.com","medium.com",
+    "findrfp.com","rfpdb.com","rfpmart.com","governmentbids.com","sam.gov"
 }
 HEADERS = {"User-Agent": "GenieDevsLeadResearch/1.1 (public business requirement research)"}
 INTENT = re.compile(
@@ -89,7 +90,7 @@ INTENT = re.compile(
     r"graphic designer|app developer|software developer|excel specialist|seo specialist)|"
     r"need (a |an )?(chatbot|website redesign|web developer|website|web app|mobile app|android app|"
     r"automation|wordpress developer|shopify developer|designer|writer|translator|excel dashboard|logo)|"
-    r"request for proposal|request for quote|request for bid|seeking (a |an )?(web designer|web developer|chatbot|"
+    r"seeking (a |an )?(web designer|web developer|chatbot|"
     r"automation|designer|writer|translator|app developer|wordpress developer|shopify developer)|"
     r"website redesign project|developer wanted|chatbot developer wanted|automation consultant wanted|"
     r"freelancer needed|designer needed|writer needed|translator needed|looking to hire a (web|software|app) developer",
@@ -134,20 +135,24 @@ def is_skipped(domain):
 def main():
     os.makedirs("data",exist_ok=True)
     old={}
+    stats={"queries":0,"rss_items":0,"empty_searches":0,"pages_fetched":0,"page_failures":0,"intent_pages":0,"new_candidates":0}
     if os.path.exists(OUT):
         with open(OUT,newline="",encoding="utf-8-sig") as f:
             for row in csv.DictReader(f):
                 key=(row.get("website","").lower().rstrip("/") or row.get("company","").lower())
                 domain=host(row.get("website",""))
-                evidence=(row.get("company","")+" "+row.get("evidence",""))
-                if key and row.get("status")=="Confirmed lead" and row.get("clientNeedConfirmed")=="Yes" and row.get("contactVerified")=="Yes" and row.get("needEvidenceUrl") and not is_skipped(domain) and INTENT.search(evidence) and not LOW_QUALITY.search(evidence):
+                if key and row.get("status")=="Research candidate" and not is_skipped(domain):
                     old[key]=row
     added=0
     checked=0
     max_checks_per_run=150
     for query in QUERIES:
+        stats["queries"] += 1
         if checked >= max_checks_per_run or added >= 50: break
-        for title,url,snippet in search(query):
+        results = search(query)
+        stats["rss_items"] += len(results)
+        if not results: stats["empty_searches"] += 1
+        for title,url,snippet in results:
             if checked >= max_checks_per_run or added >= 50: break
             domain=host(url)
             combined=re.sub(r"\s+"," ",title+" "+snippet)
@@ -157,6 +162,8 @@ def main():
             if key in old or any(host(v.get("website",""))==domain for v in old.values()): continue
             checked += 1
             page=get(url)
+            if page: stats["pages_fetched"] += 1
+            else: stats["page_failures"] += 1
             parser=Links()
             if page:
                 try: parser.feed(page)
@@ -179,9 +186,10 @@ def main():
                         emails.update(EMAIL_RE.findall(" ".join(cp.text)))
                     break
             emails={e.lower() for e in emails if not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com"])}
-            # Qualification requires explicit intent on the source page plus a publicly listed email.
+            # Email is optional at research stage; verify a business contact route before outreach.
             if not on_page_intent:
                 continue
+            stats["intent_pages"] += 1
             email=sorted(emails)[0] if emails else ""
             intent_match=INTENT.search(page_text)
             evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else combined[:500]
@@ -191,12 +199,12 @@ def main():
                 "source":url,"service":"Publicly stated web/automation requirement",
                 "status":"Research candidate",
                 "evidence":"Explicit requirement found on source page: "+evidence_excerpt[:500],
-                "notes":"AUTO-QUALIFIED: source page explicitly states a requirement and publishes a contact email. Verify freshness and scope before a financial commitment.",
+                "notes":"UNVERIFIED: on-page requirement wording found. Verify freshness, client identity, contact route and scope before outreach or commitment.",
                 "needStage":"Needs human verification","contactVerified":"No",
                 "clientNeedConfirmed":"No","needEvidenceUrl":url,"financialApproved":"No",
                 "discovered_at":datetime.now(timezone.utc).isoformat()
             }
-            old[key]=row;added+=1
+            old[key]=row;added+=1;stats["new_candidates"] += 1
             if added>=50: break
             time.sleep(0.3)
         if added>=50: break
@@ -204,6 +212,7 @@ def main():
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
         for row in old.values():w.writerow({k:row.get(k,"") for k in cols})
-    print(f"Saved {len(old)} research candidates; {added} new pages contained on-page requirement wording. Buyer intent and contact details are NOT marked confirmed.")
+    print("Diagnostics: " + ", ".join(f"{k}={v}" for k,v in stats.items()))
+    print(f"Saved {len(old)} unverified research candidates; {added} new pages contained on-page requirement wording. No buyer or contact is marked confirmed.")
 
 if __name__=="__main__": main()
