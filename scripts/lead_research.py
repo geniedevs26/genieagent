@@ -119,17 +119,18 @@ PAID_SIGNAL = re.compile(r"\b(?:paid project|paid work|budget(?:ed)?|project bud
 UNPAID_SIGNAL = re.compile(r"\b(?:unpaid|volunteer|equity only|no budget|not paid|free work)\b", re.I)
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download", re.I)
 
-def get(url, timeout=5):
-    # Retry transient blocks/timeouts before the caller moves to another engine.
-    for attempt in range(2):
+def get(url, timeout=5, attempts=2):
+    # Search engines are tried independently; search calls can disable retries
+    # because the other providers are already running in parallel.
+    for attempt in range(attempts):
         try:
             req = Request(url, headers=HEADERS)
             with urlopen(req, timeout=timeout) as r:
                 if r.status != 200: return ""
                 return r.read(800_000).decode("utf-8", "ignore")
         except Exception as exc:
-            if attempt == 1:
-                print(f"Request failed after retries: {urlparse(url).netloc} ({type(exc).__name__})")
+            if attempt == attempts - 1:
+                print(f"Request failed after {attempts} attempt(s): {urlparse(url).netloc} ({type(exc).__name__})")
             else:
                 time.sleep(1 + attempt)
     return ""
@@ -160,7 +161,7 @@ def search(query):
         ("Ecosia HTML","https://www.ecosia.org/search?q="+quote(query),"html"),
     ]
     with ThreadPoolExecutor(max_workers=len(providers)) as pool:
-        fetched=list(pool.map(lambda item:(item[0],item[1],item[2],get(item[1],timeout=5)),providers))
+        fetched=list(pool.map(lambda item:(item[0],item[1],item[2],get(item[1],timeout=5,attempts=1)),providers))
     for provider,base_url,kind,raw in fetched:
         if not raw: continue
         if kind=="rss":
