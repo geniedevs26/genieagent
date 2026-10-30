@@ -6,6 +6,7 @@ on opt-out, and creates a pending approval when a client asks for pricing or acc
 """
 import email
 import imaplib
+import smtplib
 import json
 import os
 import re
@@ -16,6 +17,7 @@ import urllib.error
 from datetime import datetime, timezone, timedelta
 from email.header import decode_header
 from email.utils import parseaddr
+from email.message import EmailMessage
 
 SUPABASE_URL = "https://irpqaoooosrjhviwdddo.supabase.co"
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
@@ -24,6 +26,7 @@ OPTOUT_RE = re.compile(r"\b(?:stop emailing|stop contacting|do not contact|don't
 PROPOSAL_REQUEST_RE = re.compile(r"\b(?:please send (?:me |us )?(?:a )?(?:quote|quotation|proposal|estimate)|send (?:me |us )?(?:a )?(?:quote|quotation|proposal|estimate)|provide (?:a )?(?:quote|quotation|proposal|estimate)|share (?:a )?(?:quote|quotation|proposal|estimate)|pricing|how much (?:would|will|does) it cost|what (?:is|would be) your (?:price|fee)|interested in working with you|interested in your services|we need help with|we would like to hire you|we'd like to hire you|can you help us)\b", re.I)
 ORDER_ACCEPT_RE = re.compile(r"\b(?:accept your (?:proposal|quote|quotation|offer)|approve (?:the )?(?:proposal|quote|quotation)|we(?:'d| would) like to proceed|we're ready to proceed|we are ready to proceed|please proceed with (?:the )?(?:project|work)|go ahead with (?:the )?(?:project|work)|confirm (?:the )?order|we accept the terms|we agree to the price|we are ready to start|we're ready to start|let's move forward with (?:the )?(?:project|work))\b", re.I)
 AGREEMENT_ACCEPT_RE = re.compile(r"\b(?:signed (?:the )?agreement|agreement signed|i have signed|we have signed|we agree to the agreement|we accept the agreement|we agree to the terms|terms accepted|signed copy attached)\b", re.I)
+AUTO_REPLY_BLOCK_RE = re.compile(r"\b(?:price|pricing|quote|quotation|estimate|budget|cost|fee|rate|payment|invoice|contract|agreement|terms|deadline|timeline|availability|meeting|meet|call|phone|video call|interview|nda|confidential|security|legal|tax|credentials|password)\b", re.I)
 FINAL_ACCEPT_RE = re.compile(r"\b(?:final delivery approved|we accept the final delivery|we approve the final delivery|final work accepted|work accepted|project completed successfully|we confirm completion|all deliverables accepted|we accept all deliverables)\b", re.I)
 
 def api(path, key, method="GET", payload=None, prefer=None):
@@ -220,6 +223,55 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
             {"lead_id":lead["id"],"order_id":order["id"],"sender":sender})
         return "order_close_approval_created"
     return "reply_recorded"
+
+def ai_reply_text(account_id, token, subject, body, lead):
+    if not account_id or not token or AUTO_REPLY_BLOCK_RE.search(subject+"\\n"+body):
+        return ""
+    prompt={"messages":[
+      {"role":"system","content":"Return only JSON {\\"reply\\":\\"...\"}. Write a brief email for Siva Satya Prasad. Facts: services include responsive websites/web apps, landing pages, AI chatbots, Android apps, workflow automation, Excel/Word/PowerPoint/data work, Telugu-English translation/QA, content/SEO/technical writing and graphics. Portfolio https://sivaprasad-portfolio.pages.dev/. Coordinate by email. Never invent client history, credentials, years, availability, prices, timelines, guarantees or compliance. Never accept work, negotiate, quote, promise or agree to terms. If asked about price, budget, payment, contract, deadline, availability, calls/meetings, legal/security/confidential matters, return empty reply. For simple capability questions, answer using only facts and ask for non-confidential scope details by email. Under 100 words."},
+      {"role":"user","content":"Service: "+str(lead.get("service_need") or "")+"\\nRequirement: "+str(lead.get("evidence_summary") or "")+"\\nSubject: "+subject[:200]+"\\nMessage: "+body[:2500]}
+    ],"max_tokens":220,"temperature":0.1}
+    url="https://api.cloudflare.com/client/v4/accounts/"+account_id+"/ai/run/@cf/meta/llama-3.1-8b-instruct-fp8"
+    req=urllib.request.Request(url,data=json.dumps(prompt).encode(),headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"},method="POST")
+    try:
+        with urllib.request.urlopen(req,timeout=30) as response:
+            data=json.loads(response.read().decode("utf-8","replace"))
+        raw=(data.get("result") or {}).get("response") or ""
+        match=re.search(r"\\{.*\\}",raw,re.S)
+        if not match: return ""
+        answer=str(json.loads(match.group(0)).get("reply") or "").strip()
+        if not answer or len(answer)>900 or AUTO_REPLY_BLOCK_RE.search(answer): return ""
+        if re.search(r"\\b(?:guarantee|promise|certified|available immediately|will finish by|my clients include)\\b",answer,re.I): return ""
+        return re.sub(r"\\s+"," ",answer)
+    except Exception as exc:
+        print("AI reply held safely: "+str(exc)[:180])
+        return ""
+
+def send_ai_reply(key, owner_id, lead, recipient, subject, answer, message_id, host, port, username, password, sender):
+    import uuid
+    action_id=str(uuid.uuid4())
+    msg=EmailMessage()
+    msg["From"]=sender
+    msg["To"]=recipient
+    msg["Subject"]=subject if subject.lower().startswith("re:") else "Re: "+subject
+    msg["Reply-To"]=sender
+    if message_id:
+        msg["In-Reply-To"]=message_id
+        msg["References"]=message_id
+    msg.set_content(answer+"\\n\\nKind regards,\\nSiva Satya Prasad\\nGenieDevs")
+    api("/rest/v1/outreach_actions",key,"POST",[{"id":action_id,"owner_id":owner_id,"lead_id":lead["id"],"action_type":"ai_reply","draft_subject":msg["Subject"],"draft_body":answer,"recipient":recipient,"approval_status":"pending","result_notes":"Bounded AI factual reply; price/commitment/call filters passed."}],"return=minimal")
+    try:
+        with smtplib.SMTP(host,port,timeout=25) as server:
+            server.starttls()
+            server.login(username,password)
+            server.send_message(msg)
+        now=datetime.now(timezone.utc).isoformat()
+        api("/rest/v1/outreach_actions?id=eq."+action_id,key,"PATCH",{"approval_status":"pending_verification","executed_at":now,"result_notes":"SMTP accepted AI reply; delivery not independently verified."},"return=minimal")
+        event(key,owner_id,"ai_client_reply","pending_verification","AI sent a bounded factual email reply.",{"lead_id":lead["id"],"recipient":recipient,"action_id":action_id})
+        return True
+    except Exception as exc:
+        api("/rest/v1/outreach_actions?id=eq."+action_id,key,"PATCH",{"approval_status":"failed","result_notes":"AI reply SMTP failed: "+str(exc)[:250]},"return=minimal")
+        return False
 
 def main():
     key=os.getenv("SUPABASE_SERVICE_ROLE_KEY","").strip()
