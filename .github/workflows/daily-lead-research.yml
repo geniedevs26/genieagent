@@ -49,14 +49,6 @@ jobs:
           GENIE_SENDER_EMAIL: ${{ secrets.GENIE_SENDER_EMAIL }}
           SUPPRESSED_EMAILS: ${{ secrets.SUPPRESSED_EMAILS }}
         run: python scripts/auto_outreach.py
-      - name: Archive unconfirmed research separately from confirmed CRM leads
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: unconfirmed-research-candidates
-          path: data/research_candidates.csv
-          if-no-files-found: warn
-          retention-days: 30
       - name: Report safe research summary
         run: |
           python - <<'PY'
