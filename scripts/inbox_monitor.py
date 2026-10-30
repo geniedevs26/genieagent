@@ -250,7 +250,7 @@ def main():
         "limit":"3000"
     }),key) or []
     leads_by_id={row["id"]:row for row in leads}
-    mail=imaplib.IMAP4_SSL(host,port)
+    mail=imaplib.IMAP4_SSL(host,port,timeout=20)
     processed=replies=bounces=ignored=orders_created=approvals_created=optouts=0
     try:
         mail.login(username,password)
