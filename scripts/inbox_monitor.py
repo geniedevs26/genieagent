@@ -268,8 +268,8 @@ def main():
             if status!="OK" or not parts or not isinstance(parts[0],tuple): continue
             msg=email.message_from_bytes(parts[0][1])
             message_id=(msg.get("Message-ID") or "").strip()
-            if message_id and message_id in processed_ids:
-                mail.store(msg_num,"+FLAGS","\\Seen")
+            stable_id=message_id or ("no-id-"+str(msg_num))
+            if stable_id in processed_ids:
                 continue
             sender=parseaddr(msg.get("From",""))[1].lower()
             subject=decoded(msg.get("Subject",""))
@@ -281,7 +281,6 @@ def main():
                 recipient=next((e for e in candidates if e in sent_by_recipient),"")
                 if not recipient:
                     ignored+=1
-                    mail.store(msg_num,"+FLAGS","\\Seen")
                     processed+=1
                     continue
                 original=sent_by_recipient[recipient]
@@ -342,7 +341,6 @@ def main():
                     "Inbound client reply detected; no automatic response sent.",
                     {"lead_id":original.get("lead_id"),"sender":sender,"subject":subject[:180]})
                 replies+=1
-            mail.store(msg_num,"+FLAGS","\\Seen")
             processed+=1
     finally:
         try: mail.close()
