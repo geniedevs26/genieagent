@@ -81,6 +81,7 @@ for item in [
     '"contact_form_url"',
     '"last_verified_at"',
     'research_completed',
+    "known_by_url","requalified_updates","contacted_ids","existing_leads_requalified",
 ]:
     if item not in sync:
         fail(f"missing private sync/audit/financial gate: {item}")
