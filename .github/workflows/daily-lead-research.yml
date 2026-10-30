@@ -7,7 +7,10 @@ on:
       - 'scripts/sync_candidates_supabase.py'
       - 'scripts/auto_outreach.py'
       - 'scripts/inbox_monitor.py'
+      - 'scripts/execute_approved_actions.py'
       - 'scripts/check_security.py'
+      - 'index.html'
+      - 'supabase/migrations/**'
       - '.github/workflows/daily-lead-research.yml'
   schedule:
     - cron: "17 * * * *"
@@ -90,7 +93,7 @@ jobs:
           if os.path.exists(path):
               with open(path, newline="", encoding="utf-8-sig") as f:
                   count = sum(1 for row in csv.DictReader(f))
-          summary = f"Research run completed. Candidate rows: {count}. Lead details are not committed to this public repository. Private CRM sync status is reported in the preceding step summary."
+          summary = f"Research run completed. Automatically qualified lead rows: {count}. Lead details are not committed to this public repository. Private CRM sync status is reported in the preceding step summary."
           print(summary)
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
               f.write("## Lead research result\n\n" + summary + "\n")
