@@ -43,7 +43,8 @@ jobs:
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
-          AUTO_OUTREACH_ENABLED: ${{ secrets.AUTO_OUTREACH_ENABLED }}
+          # Outbound email stays paused until independent lead and recipient verification is enforced.
+          AUTO_OUTREACH_ENABLED: "false"
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
