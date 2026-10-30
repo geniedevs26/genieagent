@@ -295,7 +295,7 @@ def main():
     owner_id=owner["id"]
     query=urllib.parse.urlencode({
         "owner_id":"eq."+owner_id,
-        "action_type":"in.(email,follow_up,proposal,financial_proposal_send,agreement,agreement_send,milestone_delivery,final_delivery,inbound_reply)",
+        "action_type":"in.(email,follow_up,ai_reply,proposal,financial_proposal_send,agreement,agreement_send,milestone_delivery,final_delivery,inbound_reply)",
         "select":"id,lead_id,recipient,approval_status,draft_subject,action_type",
         "order":"created_at.desc","limit":"3000"
     })
@@ -307,7 +307,9 @@ def main():
             match=re.search(r"Message-ID:\s*(.+)$",action.get("draft_subject") or "")
             if match: processed_ids.add(match.group(1).strip())
         elif action.get("recipient") and action.get("approval_status") in ("pending_verification","delivered","delivery_verified"):
-            sent_by_recipient[action["recipient"].lower()]=action
+            address=action["recipient"].lower()
+            if address not in sent_by_recipient:
+                sent_by_recipient[address]=action
 
     leads=api("/rest/v1/leads?"+urllib.parse.urlencode({
         "owner_id":"eq."+owner_id,
@@ -316,7 +318,7 @@ def main():
     }),key) or []
     leads_by_id={row["id"]:row for row in leads}
     mail=imaplib.IMAP4_SSL(host,port,timeout=20)
-    processed=replies=bounces=ignored=orders_created=approvals_created=optouts=0
+    processed=replies=bounces=ignored=orders_created=approvals_created=optouts=ai_replies=ai_held=0
     try:
         mail.login(username,password)
         status,_=mail.select(folder)
@@ -405,6 +407,27 @@ def main():
                     if result=="opt_out": optouts+=1
                     if result=="proposal_approval_created": orders_created+=1;approvals_created+=1
                     if result in ("agreement_approval_created","project_start_approval_created","order_close_approval_created"): approvals_created+=1
+                    if result=="reply_recorded":
+                        account_id=os.getenv("CLOUDFLARE_AI_ACCOUNT_ID","").strip()
+                        token=os.getenv("CLOUDFLARE_AI_API_TOKEN","").strip()
+                        smtp_host=os.getenv("SMTP_HOST","").strip()
+                        smtp_user=os.getenv("SMTP_USERNAME","").strip()
+                        smtp_pass=os.getenv("SMTP_PASSWORD","").strip()
+                        sender_email=os.getenv("GENIE_SENDER_EMAIL","").strip()
+                        try: smtp_port=int(os.getenv("SMTP_PORT") or "587")
+                        except ValueError: smtp_port=587
+                        answer=ai_reply_text(account_id,token,subject,text,lead)
+                        if answer and all([smtp_host,smtp_user,smtp_pass,sender_email]):
+                            if send_ai_reply(key,owner_id,lead,sender,subject,answer,message_id,
+                                             smtp_host,smtp_port,smtp_user,smtp_pass,sender_email):
+                                ai_replies+=1
+                            else: ai_held+=1
+                        else:
+                            ai_held+=1
+                            event(key,owner_id,"ai_client_reply","held",
+                                "Client reply recorded; no safe AI response was sent.",
+                                {"lead_id":lead["id"],"sender":sender,"subject":subject[:160],
+                                 "reason":"AI credentials, SMTP settings, or safe reply unavailable."})
                 api("/rest/v1/outreach_actions",key,"POST",{
                     "owner_id":owner_id,"lead_id":original.get("lead_id"),"action_type":"inbound_reply",
                     "recipient":sender,"approval_status":"replied",
