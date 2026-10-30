@@ -256,12 +256,14 @@ def main():
         mail.login(username,password)
         status,_=mail.select(folder)
         if status!="OK": raise RuntimeError("Could not open IMAP folder "+folder)
-        status,data=mail.search(None,"UNSEEN")
-        if status!="OK": raise RuntimeError("Could not search unread mailbox messages")
-        # Process a bounded oldest-first batch so a large unread mailbox cannot stall
-        # the hourly workflow; the next run continues with the remaining unread messages.
-        unread=(data[0].split() if data and data[0] else [])
-        for msg_num in unread[:100]:
+        # Search recent mail regardless of read/unread state. The owner may read
+        # messages on a phone or desktop before this scheduled worker runs.
+        since=(datetime.now(timezone.utc)-timedelta(days=60)).strftime("%d-%b-%Y")
+        status,data=mail.search(None,"SINCE",since)
+        if status!="OK": raise RuntimeError("Could not search recent mailbox messages")
+        recent=(data[0].split() if data and data[0] else [])
+        # Latest 200 only; Message-ID records make processing idempotent across runs.
+        for msg_num in recent[-200:]:
             status,parts=mail.fetch(msg_num,"(RFC822)")
             if status!="OK" or not parts or not isinstance(parts[0],tuple): continue
             msg=email.message_from_bytes(parts[0][1])
