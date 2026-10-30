@@ -302,12 +302,17 @@ def main():
                 event(key,owner_id,"email_bounced","bounced",
                     "Mailbox monitor detected a bounce; recipient excluded from verified delivery totals.",
                     {"lead_id":original.get("lead_id"),"recipient":recipient,"subject":subject[:180]})
+                api("/rest/v1/outreach_actions",key,"POST",{
+                    "owner_id":owner_id,"lead_id":original.get("lead_id"),"action_type":"inbound_reply",
+                    "recipient":recipient,"approval_status":"bounced",
+                    "draft_subject":"Message-ID: "+stable_id,
+                    "result_notes":"Bounce notification processed; original recipient suppressed from future follow-up."
+                },"return=minimal")
                 bounces+=1
             else:
                 original=sent_by_recipient.get(sender)
                 if not original:
                     ignored+=1
-                    mail.store(msg_num,"+FLAGS","\\Seen")
                     processed+=1
                     continue
                 now=datetime.now(timezone.utc).isoformat()
@@ -347,7 +352,7 @@ def main():
         except Exception: pass
         mail.logout()
 
-    msg=f"Inbox monitor completed: {replies} replies, {bounces} bounces, {optouts} opt-outs, {orders_created} client proposal opportunities and {approvals_created} stage approvals created; {ignored} unrelated messages left unread."
+    msg=f"Inbox monitor completed: {replies} replies, {bounces} bounces, {optouts} opt-outs, {orders_created} client proposal opportunities and {approvals_created} stage approvals created; {ignored} unrelated recent messages ignored without changing mailbox read state."
     print(msg)
     if summary_path:
         with open(summary_path,"a",encoding="utf-8") as f: f.write("\n## Inbox monitoring\n\n"+msg+"\n")
