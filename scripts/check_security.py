@@ -90,13 +90,15 @@ for item in [
 
 for item in [
     "DAILY_LIMIT = 5",
-    "FOLLOWUP_AFTER_DAYS = 5",
-    "MAX_FOLLOWUPS = 1",
+    "FOLLOWUP_DAYS = (5, 12, 21)",
+    "MAX_FOLLOWUPS = len(FOLLOWUP_DAYS)",
     "PORTFOLIO_URL = \"https://sivaprasad-portfolio.pages.dev/\"",
     "def service_profile(lead, payload):",
     "def requirement_reference(evidence):",
     "def personalised_message(lead, payload, kind, previous_bodies):",
     "Message uniqueness check failed",
+    "len(prior)>=MAX_FOLLOWUPS",
+    "FOLLOWUP_DAYS[len(prior)]",
     "Every prospecting message includes the portfolio",
     "imap_ready=all(",
     "reply_leads=set()",
