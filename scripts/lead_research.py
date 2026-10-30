@@ -122,12 +122,35 @@ def host(url):
     except Exception: return ""
 
 def search(query):
-    raw=get("https://www.bing.com/search?format=rss&q="+quote(query), timeout=6)
-    if not raw: return []
-    try:
-        root=ET.fromstring(raw)
-        return [(html.unescape(i.findtext("title","")),i.findtext("link",""),html.unescape(i.findtext("description",""))) for i in root.findall(".//item")]
-    except Exception: return []
+    results=[]
+    # Independent public search providers; failures in one never stop the others.
+    providers=[
+        ("Bing RSS","https://www.bing.com/search?format=rss&q="+quote(query),"rss"),
+        ("Yahoo RSS","https://search.yahoo.com/rss?p="+quote(query),"rss"),
+        ("DuckDuckGo HTML","https://html.duckduckgo.com/html/?q="+quote(query),"html"),
+    ]
+    for provider,url,kind in providers:
+        raw=get(url,timeout=10)
+        if not raw: continue
+        if kind=="rss":
+            try:
+                root=ET.fromstring(raw)
+                results.extend((html.unescape(i.findtext("title","")),i.findtext("link",""),html.unescape(i.findtext("description","")),provider) for i in root.findall(".//item"))
+            except Exception: pass
+        else:
+            parser=Links()
+            try: parser.feed(raw)
+            except Exception: continue
+            for href,label in parser.links:
+                target=urljoin(url,href)
+                if host(target) and "duckduckgo.com" not in host(target):
+                    results.append((label or target,target,"",provider))
+    unique=[]; seen=set()
+    for title,url,snippet,provider in results:
+        key=url.split("#")[0].rstrip("/")
+        if key and key not in seen:
+            seen.add(key); unique.append((title,url,snippet,provider))
+    return unique
 
 def is_skipped(domain):
     return not domain or domain in SKIP_DOMAINS or any(domain.endswith("."+d) for d in SKIP_DOMAINS)
@@ -152,7 +175,7 @@ def main():
         results = search(query)
         stats["rss_items"] += len(results)
         if not results: stats["empty_searches"] += 1
-        for title,url,snippet in results:
+        for title,url,snippet,provider in results:
             if checked >= max_checks_per_run or added >= 50: break
             domain=host(url)
             combined=re.sub(r"\s+"," ",title+" "+snippet)
@@ -196,7 +219,7 @@ def main():
             row={
                 "company":title[:180],"country":"Other international","contact":"",
                 "email":email,"website":url,
-                "source":url,"service":"Publicly stated web/automation requirement",
+                "source":url,"discovery_method":provider,"service":"Publicly stated web/automation requirement",
                 "status":"Research candidate",
                 "evidence":"Explicit requirement found on source page: "+evidence_excerpt[:500],
                 "notes":"UNVERIFIED: on-page requirement wording found. Verify freshness, client identity, contact route and scope before outreach or commitment.",
@@ -208,7 +231,7 @@ def main():
             if added>=50: break
             time.sleep(0.3)
         if added>=50: break
-    cols=["company","country","contact","email","website","source","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at"]
+    cols=["company","country","contact","email","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at"]
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
         for row in old.values():w.writerow({k:row.get(k,"") for k in cols})
