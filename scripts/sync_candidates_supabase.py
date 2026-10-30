@@ -192,6 +192,7 @@ def main():
             "evidence_url": item.get("needEvidenceUrl") or item.get("source") or item.get("website") or None,
             "contact_form_url": item.get("contact_url") or None,
             "last_verified_at": now,
+            "source_name": item.get("discovery_method") or "public_web_search",
             "lead_status": "qualified",
             "payload": payload,
             "updated_at": now,
