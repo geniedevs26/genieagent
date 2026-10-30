@@ -83,17 +83,25 @@ SKIP_DOMAINS = {
     "upwork.com","fiverr.com","reddit.com","quora.com","medium.com",
     "findrfp.com","rfpdb.com","rfpmart.com","governmentbids.com","sam.gov"
 }
-HEADERS = {"User-Agent": "GenieDevsLeadResearch/1.1 (public business requirement research)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.8"}
 INTENT = re.compile(
-    r"looking for (a |an )?(web designer|web developer|website developer|website designer|chatbot|automation consultant|"
+    r"(?:we are |we're |i am |i'm |our team is )?looking for (?:a |an |someone to |help with )?"
+    r"(?:web designer|web developer|website developer|website designer|chatbot|automation consultant|"
     r"wordpress developer|shopify developer|designer|writer|technical writer|freelancer|translator|"
-    r"graphic designer|app developer|software developer|excel specialist|seo specialist)|"
-    r"need (a |an )?(chatbot|website redesign|web developer|website|web app|mobile app|android app|"
-    r"automation|wordpress developer|shopify developer|designer|writer|translator|excel dashboard|logo)|"
-    r"seeking (a |an )?(web designer|web developer|chatbot|"
-    r"automation|designer|writer|translator|app developer|wordpress developer|shopify developer)|"
-    r"website redesign project|developer wanted|chatbot developer wanted|automation consultant wanted|"
-    r"freelancer needed|designer needed|writer needed|translator needed|looking to hire a (web|software|app) developer",
+    r"graphic designer|app developer|software developer|excel specialist|seo specialist|"
+    r"website|web app|mobile app|android app|landing page|dashboard|automation|"
+    r"website redesign|logo|content writer)|"
+    r"(?:we |i |our team )?(?:urgently )?need (?:a |an |someone to |help with )?"
+    r"(?:chatbot|website redesign|web developer|website|web app|mobile app|android app|"
+    r"automation|wordpress developer|shopify developer|designer|writer|translator|excel dashboard|logo|"
+    r"landing page|spreadsheet|data cleanup|AI integration)|"
+    r"(?:we are |we're |i am |i'm )?seeking (?:a |an |someone to )?"
+    r"(?:web designer|web developer|chatbot|automation|designer|writer|translator|app developer|"
+    r"wordpress developer|shopify developer|website builder|excel specialist)|"
+    r"looking to hire (?:a |an )?(?:web|software|app|wordpress|shopify|chatbot|automation|graphic) developer|"
+    r"(?:website redesign|web development|app development|chatbot development|automation) project inquiry|"
+    r"developer wanted|chatbot developer wanted|automation consultant wanted|freelancer needed|"
+    r"designer needed|writer needed|translator needed|website redesign project",
     re.I
 )
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download", re.I)
@@ -129,14 +137,17 @@ def host(url):
 
 def search(query):
     results=[]
-    # Independent public search providers; failures in one never stop the others.
+    # Search engines are independent: a block or outage never ends discovery.
     providers=[
         ("Bing RSS","https://www.bing.com/search?format=rss&q="+quote(query),"rss"),
-        ("Yahoo RSS","https://search.yahoo.com/rss?p="+quote(query),"rss"),
         ("DuckDuckGo HTML","https://html.duckduckgo.com/html/?q="+quote(query),"html"),
+        ("Google HTML","https://www.google.com/search?num=20&q="+quote(query),"html"),
+        ("Mojeek HTML","https://www.mojeek.com/search?q="+quote(query),"html"),
+        ("Startpage HTML","https://www.startpage.com/sp/search?query="+quote(query),"html"),
+        ("Ecosia HTML","https://www.ecosia.org/search?q="+quote(query),"html"),
     ]
     for provider,url,kind in providers:
-        raw=get(url,timeout=5)
+        raw=get(url,timeout=7)
         if not raw: continue
         if kind=="rss":
             try:
@@ -149,10 +160,17 @@ def search(query):
             except Exception: continue
             for href,label in parser.links:
                 target=urljoin(url,href)
+                parsed=urlparse(target)
+                if parsed.path=="/url":
+                    qv=parse_qs(parsed.query).get("q") or parse_qs(parsed.query).get("url") or []
+                    if qv: target=unquote(qv[0])
                 if "duckduckgo.com" in host(target):
                     redirected=parse_qs(urlparse(target).query).get("uddg",[])
                     if redirected: target=unquote(redirected[0])
-                if host(target) and "duckduckgo.com" not in host(target):
+                if "startpage.com" in host(target):
+                    redirected=parse_qs(urlparse(target).query).get("url",[])
+                    if redirected and redirected[0].startswith("http"): target=unquote(redirected[0])
+                if host(target) and host(target) not in {"google.com","bing.com","mojeek.com","startpage.com","ecosia.org","duckduckgo.com"}:
                     results.append((label or target,target,"",provider))
     unique=[]; seen=set()
     for title,url,snippet,provider in results:
@@ -231,7 +249,7 @@ def main():
             row={
                 "company":title[:180],"country":"Other international","contact":"",
                 "email":email,"website":url,
-                "source":url,"discovery_method":provider,"service":"Publicly stated web/automation requirement",
+                "source":url,"discovery_method":provider,"service":"Publicly stated business requirement — verify exact scope",
                 "status":"Research candidate",
                 "evidence":"Explicit requirement found on source page: "+evidence_excerpt[:500],
                 "notes":"UNVERIFIED: on-page requirement wording found. Verify freshness, client identity, contact route and scope before outreach or commitment.",
@@ -243,7 +261,7 @@ def main():
             if added>=50: break
             time.sleep(0.3)
         if added>=50: break
-    cols=["company","country","contact","email","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at"]
+    cols=["company","country","contact","contact_url","email","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at"]
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
         for row in old.values():w.writerow({k:row.get(k,"") for k in cols})
