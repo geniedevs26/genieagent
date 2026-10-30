@@ -71,3 +71,7 @@ python scripts/execute_approved_actions.py
 ~~~
 
 Cloudflare Pages uses framework preset None, no build command, and / as the output directory. A new commit deploys when the Pages Git integration is active.
+
+
+## Optional AI email replies
+See [AI reply setup](docs/AI_REPLY_SETUP.md) for the optional, guarded Cloudflare Workers AI responder, daily cap, and one-time GitHub Secrets configuration.
