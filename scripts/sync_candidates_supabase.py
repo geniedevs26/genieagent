@@ -146,6 +146,7 @@ def main():
             "company": company,
             "country": item.get("country") or "Other international",
             "contact": item.get("contact") or "",
+            "contact_url": item.get("contact_url") or "",
             "email": item.get("email") or "",
             "phone": "",
             "website": item.get("website") or "",
