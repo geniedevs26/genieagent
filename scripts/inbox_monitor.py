@@ -162,10 +162,23 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
     if not order: return "reply_recorded"
     status=order.get("order_status")
     if status in ("financial_proposal_sent","financial_proposal_approved") and order_accept:
-        api("/rest/v1/client_orders?id=eq."+order["id"],key,"PATCH",{
+        finance_rows=api("/rest/v1/financial_approvals?"+urllib.parse.urlencode({
+            "owner_id":"eq."+owner_id,"lead_id":"eq."+lead["id"],
+            "select":"proposed_revenue,currency,payment_terms,scope_summary","limit":"1"
+        }),key) or []
+        accepted_terms=finance_rows[0] if finance_rows else {}
+        accepted_patch={
             "client_accepted_at":now,"client_acceptance_evidence":safe_evidence,
             "order_status":"awaiting_agreement_approval"
-        },"return=minimal")
+        }
+        if accepted_terms:
+            accepted_patch.update({
+                "agreed_amount":accepted_terms.get("proposed_revenue"),
+                "agreed_currency":accepted_terms.get("currency") or order.get("agreed_currency") or "USD",
+                "payment_terms":accepted_terms.get("payment_terms"),
+                "scope_summary":accepted_terms.get("scope_summary") or order.get("scope_summary")
+            })
+        api("/rest/v1/client_orders?id=eq."+order["id"],key,"PATCH",accepted_patch,"return=minimal")
         agreement_body=(
             "PROJECT AGREEMENT — DRAFT FOR OWNER REVIEW\n\n"
             "Client: "+company+"\nProject scope: "+order.get("scope_summary","")+"\n"
