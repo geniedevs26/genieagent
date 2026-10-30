@@ -105,6 +105,7 @@ INTENT = re.compile(
     r"designer needed|writer needed|translator needed|website redesign project",
     re.I
 )
+PAID_SIGNAL = re.compile(r"\b(?:paid project|paid work|budget(?:ed)?|project budget|hiring|looking to hire|hire|contract(?:or)?|commission|compensation|rate|quote|request for quote|payment|pay for|fee|funded)\b", re.I)
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download", re.I)
 
 def get(url, timeout=5):
@@ -229,7 +230,7 @@ def main():
                 except Exception: pass
             page_text=re.sub(r"\s+"," "," ".join(parser.text))
             # Search snippets alone never qualify a lead.
-            on_page_intent=bool(INTENT.search(page_text)) and not LOW_QUALITY.search(page_text[:12000])
+            on_page_intent=bool(INTENT.search(page_text)) and bool(PAID_SIGNAL.search(page_text)) and not LOW_QUALITY.search(page_text[:12000])
             contact_url=""
             emails=set(EMAIL_RE.findall(page_text))
             for href,label in parser.links:
@@ -246,7 +247,7 @@ def main():
                     break
             emails={e.lower() for e in emails if not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com"])}
             # Email is optional at research stage; verify a business contact route before outreach.
-            if not on_page_intent:
+            if not on_page_intent or not (emails or contact_url):
                 continue
             stats["intent_pages"] += 1
             email=sorted(emails)[0] if emails else ""
@@ -254,18 +255,18 @@ def main():
             evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else combined[:500]
             row={
                 "company":title[:180],"country":"Other international","contact":"",
-                "contact_url":contact_url,"email":email,"website":url,
+                "contact_url":contact_url,"email":email,"paidSignal":"Yes","website":url,
                 "source":url,"discovery_method":provider,"service":"Publicly stated business requirement — verify exact scope",
                 "status":"Research candidate",
-                "evidence":"Explicit requirement found on source page: "+evidence_excerpt[:500],
-                "notes":"UNVERIFIED: on-page requirement wording found. Verify freshness, client identity, contact route and scope before outreach or commitment.",
+                "evidence":"Explicit service requirement and paid-project signal found on source page: "+evidence_excerpt[:500],
+                "notes":"UNVERIFIED: on-page service need, paid-project signal and public contact route found. Verify freshness, client identity, budget, scope and contact before outreach or commitment.",
                 "needStage":"Needs human verification","contactVerified":"No",
                 "clientNeedConfirmed":"No","needEvidenceUrl":url,"financialApproved":"No",
                 "discovered_at":datetime.now(timezone.utc).isoformat()
             }
             old[key]=row;added+=1;stats["new_candidates"] += 1
             if added>=50: break
-    cols=["company","country","contact","contact_url","email","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at"]
+    cols=["company","country","contact","contact_url","email","paidSignal","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at"]
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
         for row in old.values():w.writerow({k:row.get(k,"") for k in cols})
