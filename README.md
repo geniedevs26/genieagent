@@ -39,9 +39,9 @@ For initial outreach, follow-up and approved-stage emails:
 - SMTP_USERNAME
 - SMTP_PASSWORD (provider app password/credential)
 - GENIE_SENDER_EMAIL
-- Optional SUPPRESSED_EMAILS (comma-separated addresses that must never be contacted)
+- Optional SUPPRESSED_EMAILS (comma-separated addresses that must never be contacted)\n\nFor bounded AI email replies (Cloudflare Workers AI free allocation):\n- CLOUDFLARE_AI_ACCOUNT_ID\n- CLOUDFLARE_AI_API_TOKEN (Workers AI API token with Workers AI Read permission; keep only in GitHub Actions Secrets)\n\nWorkers AI currently includes 10,000 Neurons/day on the Free Workers plan. GenieAgent caps itself at three low-risk AI replies per UTC day. Keep the Cloudflare account on the Free plan and do not add paid credits or upgrade. If the daily free allocation is exhausted, AI replies fail closed and are held.
 
-For inbox reply/bounce and client-stage monitoring:
+For inbox reply/bounce, AI email replies and client-stage monitoring:
 - IMAP_HOST
 - IMAP_PORT (normally 993)
 - IMAP_USERNAME
