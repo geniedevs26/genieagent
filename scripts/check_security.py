@@ -65,7 +65,6 @@ for item in [
     'item.get("needEvidenceUrl")',
     '"lead_status": "research"',
     'item.get("needEvidenceUrl")',
-    '"lead_status": "qualified"',
     'research_completed',
     'financial_approvals',
 ]:
