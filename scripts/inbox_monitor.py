@@ -122,7 +122,7 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
             api("/rest/v1/financial_approvals",key,"POST",[{
                 "owner_id":owner_id,"lead_id":lead["id"],"approval_type":"quote",
                 "approval_status":"pending","currency":currency,"proposed_revenue":0,
-                "estimated_costs":0,"estimated_net_profit":0,"scope_summary":scope,
+                "estimated_costs":0,"scope_summary":scope,
                 "cost_breakdown":{"tools":0,"fees":0,"delivery":0,"contingency":0,"tax_reserve":0},
                 "evidence_url":lead.get("evidence_url") or payload.get("needEvidenceUrl"),
                 "payment_terms":None,"decision_notes":"Awaiting owner pricing, cost and payment-term review."
@@ -140,12 +140,17 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
         )
         create_stage_request(key,owner_id,order,"financial_proposal_send",
             "Review financial proposal for "+company,"Financial proposal — "+company,proposal_body)
+        payload["status"]="Replied"
+        payload["emailDeliveryStatus"]="reply_received"
+        payload["lastClientReplyAt"]=now
         payload["clientOrderId"]=order["id"]
         payload["clientProposalRequestedAt"]=now
         payload["clientNeedConfirmed"]="Yes"
         payload["contactVerified"]="Yes"
         payload["needStage"]="Client need confirmed"
         payload["activity"]=(payload.get("activity") if isinstance(payload.get("activity"),list) else [])+[{
+            "date":now[:10],"text":"Inbound client reply received from "+sender+"."
+        },{
             "date":now[:10],"text":"Client requested pricing/proposal or expressed clear hiring intent. Financial proposal approval created; nothing sent."
         }]
         api("/rest/v1/leads?id=eq."+lead["id"],key,"PATCH",{"payload":payload,"updated_at":now},"return=minimal")
