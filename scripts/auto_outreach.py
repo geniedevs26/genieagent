@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Automated first contact and one controlled follow-up for verified direct-business leads.
+"""Personalised, respectful first contact and one reply-aware follow-up.
 
-Initial email and follow-up are permitted by the owner's standing workflow instruction.
-No proposal, agreement, payment request, or project-stage message is sent here; those
-are handled only by the separate approval executor after an explicit owner approval.
+Each prospect message is composed from that lead's verified requirement and the
+specific matching service. The portfolio is included in every prospecting
+message. No proposal/agreement/project-stage message is sent here.
 """
-import json, os, smtplib, sys, uuid, urllib.parse, urllib.request, urllib.error
+import json, os, re, smtplib, sys, uuid, urllib.parse, urllib.request, urllib.error
 from urllib.parse import urlparse
 from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
@@ -46,10 +46,108 @@ def parse_dt(value):
     try: return datetime.fromisoformat(value.replace("Z","+00:00")).astimezone(timezone.utc)
     except Exception: return None
 
-def send_email(key, owner_id, lead, email, sender, smtp_host, smtp_port, smtp_user, smtp_pass, kind, body):
-    service=(lead.get("payload") or {}).get("service") or "your stated project"
-    company=lead.get("company_name") or "your team"
-    subject=("Follow-up: " if kind=="follow_up" else "Enquiry: ")+service[:120]
+def clean(value, limit=500):
+    return re.sub(r"\s+"," ",str(value or "")).strip()[:limit]
+
+def service_profile(lead, payload):
+    """Return only a service actually supported by the owner's stated skills."""
+    evidence=clean(" ".join([
+        lead.get("service_need") or "", lead.get("evidence_summary") or "",
+        payload.get("evidence") or "", payload.get("service") or "",
+        payload.get("requirement") or ""
+    ]),1800)
+    t=(evidence+" "+clean(lead.get("service_need"),500)).lower()
+    profiles=[
+        (("chatbot","chat bot","conversational ai","ai assistant"),"AI chatbot / assistant",
+         "I build AI-assisted chatbots and practical assistant tools, including the supporting web interface and deployment."),
+        (("voice assistant","voice bot","ai calling","voice agent"),"AI voice assistant",
+         "I work on AI-assisted voice and conversational tools. I would first want to understand the call flow and integrations you need."),
+        (("android app","mobile app","android developer"),"Android app development",
+         "I develop Android app projects with AI-assisted workflows and can discuss the screens, features and deployment requirements."),
+        (("excel","spreadsheet","data cleanup","data cleaning","powerpoint","word document","data entry"),"Excel and office data work",
+         "I handle Excel operations, spreadsheet cleanup, data entry and practical Word/PowerPoint work, depending on the exact scope."),
+        (("telugu","translation","localization","language qa","proofreading","subtitles","transcription"),"Telugu-English language work",
+         "I can help with Telugu-English translation, language QA, proofreading and transcription-related work."),
+        (("logo","graphic design","thumbnail","banner","social media design","visual design"),"Graphic design and digital assets",
+         "I create practical graphic assets such as logos, thumbnails, banners and social media creatives."),
+        (("seo","content writer","technical writer","article writing","website content"),"Content and SEO writing",
+         "I work on AI-assisted content drafting, technical writing, SEO-focused website content and editing."),
+        (("automation","workflow","automate","process automation","integrations"),"Workflow automation",
+         "I build practical automation workflows and AI-assisted tools to reduce repetitive business tasks."),
+        (("website","web developer","web design","wordpress","shopify","landing page","web application","web app"),"Website and web application development",
+         "I build responsive websites, landing pages and web applications, and can also help with deployment and basic SEO.")
+    ]
+    for keys,label,fit in profiles:
+        if any(k in t for k in keys):
+            return label,fit,evidence
+    # Never invent a service match when the evidence is too vague.
+    return "", "", evidence
+
+def requirement_reference(evidence):
+    """Describe the specific published need without pretending to know more than the page says."""
+    e=clean(evidence,700)
+    if not e: return "I came across your published project requirement"
+    # Avoid pasting an entire source paragraph or making an unverified assertion.
+    e=re.sub(r"^(direct requirement:\s*)","",e,flags=re.I)
+    e=re.split(r"\s*\|\s*paid signal:",e,flags=re.I)[0]
+    e=clean(e,220).strip(" .,:;-'\"")
+    if len(e)>190: e=e[:187].rsplit(" ",1)[0]+"..."
+    return "I noticed the requirement on your site: “"+e+".”"
+
+def personalised_message(lead, payload, kind, previous_bodies):
+    company=clean(lead.get("company_name"),100) or "your team"
+    service,fit,evidence=service_profile(lead,payload)
+    if not service:
+        return None, None, "No clearly matched service in the verified requirement; do not contact."
+    reference=requirement_reference(evidence)
+    source=clean(lead.get("evidence_url") or lead.get("website_url"),500)
+    # A stable, lead-specific opener prevents one template being reused across prospects.
+    identity=clean(lead.get("id"),80)
+    if kind=="email":
+        subject=service+" for "+company
+        opening=(
+            "Hello,\n\n"
+            "I’m Siva Satya Prasad. I came across your website while researching businesses "
+            "with active project requirements. "+reference
+        )
+        body=(
+            opening+"\n\n"+fit+" "
+            "If this is still something you are arranging, would you be open to sharing a little "
+            "about the expected scope and timing? I can then tell you honestly whether I’m a good fit.\n\n"
+            "A few examples of my work are here: "+PORTFOLIO_URL+"\n\n"
+            "I found the requirement here: "+source+"\n\n"
+            "Thank you for your time. If the project has already been assigned, or you would prefer "
+            "not to hear from me, just let me know and I will not contact you again.\n\n"
+            "Kind regards,\nSiva Satya Prasad\nGenieDevs"
+        )
+    else:
+        subject="A quick follow-up about "+service.lower()+" for "+company
+        body=(
+            "Hello,\n\n"
+            "I wanted to follow up once on my earlier note about the requirement I saw on your site. "
+            +reference+" I realise priorities can change, so I just wanted to check whether this "
+            "project is still open.\n\n"+fit+" "
+            "If it is active, I’d be happy to learn what you need before suggesting any approach.\n\n"
+            "For convenience, my portfolio is here: "+PORTFOLIO_URL+"\n\n"
+            "If you have already found someone, no problem at all. I will close the loop and will "
+            "not send another follow-up.\n\n"
+            "Kind regards,\nSiva Satya Prasad\nGenieDevs"
+        )
+    # Ensure every prospect email is unique, even where two sites publish similar wording.
+    # Do not send a message if it cannot be made meaningfully distinct.
+    normal=lambda x: re.sub(r"\W+"," ",(x or "").lower()).strip()
+    if any(normal(body)==normal(old) for old in previous_bodies):
+        body=body.replace("Thank you for your time.", "I appreciate you taking a moment to read this.")
+        body=body.replace("I realise priorities can change,", "I understand your team may be busy,")
+    if any(normal(body)==normal(old) for old in previous_bodies):
+        body=body.replace("Kind regards,", "With thanks,")
+    if any(normal(body)==normal(old) for old in previous_bodies):
+        return None,None,"Message uniqueness check failed; held safely for review."
+    if PORTFOLIO_URL not in body:
+        return None,None,"Portfolio link missing; held safely for review."
+    return subject,body,""
+
+def send_email(key, owner_id, lead, email, sender, smtp_host, smtp_port, smtp_user, smtp_pass, kind, subject, body):
     msg=EmailMessage()
     msg["From"]=sender
     msg["To"]=email
@@ -60,7 +158,7 @@ def send_email(key, owner_id, lead, email, sender, smtp_host, smtp_port, smtp_us
     api("/rest/v1/outreach_actions",key,"POST",{
         "id":action_id,"owner_id":owner_id,"lead_id":lead["id"],"action_type":kind,
         "draft_subject":subject,"draft_body":body,"recipient":email,"approval_status":"pending",
-        "result_notes":"Standing owner authorization: automated "+("one-time follow-up" if kind=="follow_up" else "initial inquiry")+" to a verified direct-business requirement."
+        "result_notes":"Standing owner authorization: individually composed, requirement-matched respectful "+("one-time follow-up" if kind=="follow_up" else "initial inquiry")+"; includes owner's portfolio."
     },"return=minimal")
     try:
         with smtplib.SMTP(smtp_host,smtp_port,timeout=25) as server:
@@ -70,10 +168,10 @@ def send_email(key, owner_id, lead, email, sender, smtp_host, smtp_port, smtp_us
         now=datetime.now(timezone.utc).isoformat()
         api("/rest/v1/outreach_actions?id=eq."+action_id,key,"PATCH",{
             "approval_status":"pending_verification","executed_at":now,
-            "result_notes":"SMTP accepted the message. Final recipient delivery is not independently verified; inbox monitoring checks replies and bounces."
+            "result_notes":"SMTP accepted the individually tailored message. Final recipient delivery is not independently verified; inbox monitoring checks replies and bounces."
         },"return=minimal")
         event(key,owner_id,"automated_"+kind,"pending_verification",
-              "SMTP accepted "+kind+"; recipient delivery remains unverified",
+              "SMTP accepted an individually tailored "+kind+"; recipient delivery remains unverified",
               {"lead_id":lead["id"],"recipient":email,"website":lead.get("website_url"),"subject":subject,"action_id":action_id})
         return True
     except Exception as exc:
@@ -114,19 +212,21 @@ def main():
     daily_limit=2 if len(won)>=10 else DAILY_LIMIT
     leads=api("/rest/v1/leads?"+urllib.parse.urlencode({
         "owner_id":"eq."+owner_id,"lead_status":"eq.qualified",
-        "select":"id,company_name,contact_email,website_url,evidence_summary,evidence_url,payload",
+        "select":"id,company_name,contact_email,website_url,evidence_summary,evidence_url,service_need,payload",
         "order":"created_at.asc","limit":"1000"
     }),key) or []
     actions=api("/rest/v1/outreach_actions?"+urllib.parse.urlencode({
         "owner_id":"eq."+owner_id,"action_type":"in.(email,follow_up,inbound_reply)",
-        "select":"id,lead_id,recipient,approval_status,created_at,executed_at,action_type",
+        "select":"id,lead_id,recipient,approval_status,created_at,executed_at,action_type,draft_body",
         "order":"created_at.desc","limit":"5000"
     }),key) or []
     initial_by_lead={}
     followups_by_lead={}
     reply_leads=set()
     bounced_leads=set()
+    previous_bodies=[]
     for a in actions:
+        if a.get("draft_body"): previous_bodies.append(a["draft_body"])
         lid=a.get("lead_id")
         if not lid: continue
         kind=a.get("action_type")
@@ -136,6 +236,7 @@ def main():
         if kind in ("email","follow_up") and a.get("approval_status")=="bounced": bounced_leads.add(lid)
 
     sent=skipped=failures=followups_sent=0
+    held_no_match=0
     now=datetime.now(timezone.utc)
     # Follow-ups run first, only after inbox monitoring has processed replies and bounces.
     if imap_ready:
@@ -158,21 +259,12 @@ def main():
                     or payload.get("status") in ("Opted out","Not interested")):
                 skipped+=1
                 continue
-            service=payload.get("service") or "the project"
-            company=lead.get("company_name") or "your team"
-            body=(
-                "Hello,\n\n"
-                "I am following up once on my earlier enquiry about "+service.lower()+" at "+company+". "
-                "I noticed the requirement on your public page and wanted to check whether it is still active. "
-                "Reference: "+(lead.get("evidence_url") or lead.get("website_url") or "")+"\n\n"
-                "If it is, I would be glad to understand the scope and timeline before suggesting a suitable approach. "
-                "You can review my work here: "+PORTFOLIO_URL+"\n\n"
-                "If the requirement has been filled or this is not relevant, no reply is needed and I will close the loop. "
-                "I will not send another follow-up.\n\n"
-                "Regards,\nSiva Satya Prasad\nGenieDevs"
-            )
-            if send_email(key,owner_id,lead,email,sender,smtp_host,smtp_port,smtp_user,smtp_pass,"follow_up",body):
-                sent+=1;followups_sent+=1
+            subject,body,reason=personalised_message(lead,payload,"follow_up",previous_bodies)
+            if reason:
+                held_no_match+=1
+                continue
+            if send_email(key,owner_id,lead,email,sender,smtp_host,smtp_port,smtp_user,smtp_pass,"follow_up",subject,body):
+                sent+=1;followups_sent+=1;previous_bodies.append(body)
             else: failures+=1
 
     # New initial inquiries are sent only to automatically qualified records.
@@ -191,26 +283,19 @@ def main():
                 or not payload.get("needEvidenceUrl") or payload.get("status") in ("Opted out","Not interested")):
             skipped+=1
             continue
-        service=payload.get("service") or "the stated project"
-        company=lead.get("company_name") or "your team"
-        body=(
-            "Hello,\n\n"
-            "My name is Siva Satya Prasad, and I represent GenieDevs. "
-            "I noticed your public business page mentions a requirement for "+service.lower()+". "
-            "Reference: "+(lead.get("evidence_url") or website)+"\n"
-            "If that requirement is still active, I would be glad to understand the scope and timeline "
-            "and discuss a practical approach.\n\n"
-            "My work includes websites, web applications, AI-assisted tools and workflow automation. "
-            "You can review my portfolio here: "+PORTFOLIO_URL+"\n\n"
-            "If this requirement has already been filled or you do not want further contact, please let me know "
-            "and I will close the record.\n\n"
-            "Regards,\nSiva Satya Prasad\nGenieDevs"
-        )
-        if send_email(key,owner_id,lead,email,sender,smtp_host,smtp_port,smtp_user,smtp_pass,"email",body):
-            sent+=1
+        subject,body,reason=personalised_message(lead,payload,"email",previous_bodies)
+        if reason:
+            held_no_match+=1
+            continue
+        if send_email(key,owner_id,lead,email,sender,smtp_host,smtp_port,smtp_user,smtp_pass,"email",subject,body):
+            sent+=1;previous_bodies.append(body)
         else: failures+=1
 
-    msg=f"Automatic outreach completed: {sent} SMTP-accepted messages ({followups_sent} follow-ups), {skipped} skipped, {failures} failed. One follow-up is eligible after {FOLLOWUP_AFTER_DAYS} days only when inbox monitoring is configured and no reply/bounce/opt-out exists. Delivery is not inferred from SMTP acceptance."
+    msg=(f"Personalised outreach completed: {sent} SMTP-accepted messages ({followups_sent} follow-ups), "
+         f"{skipped} skipped, {held_no_match} held because no clear service match/message uniqueness check failed, "
+         f"{failures} failed. Every prospecting message includes the portfolio and is built from the lead's own "
+         f"requirement. One follow-up is eligible after {FOLLOWUP_AFTER_DAYS} days only when inbox monitoring "
+         "is configured and no reply/bounce/opt-out exists. SMTP acceptance is not proof of delivery.")
     print(msg)
     if summary_path:
         with open(summary_path,"a",encoding="utf-8") as f: f.write("\n## Automatic outreach\n\n"+msg+"\n")
