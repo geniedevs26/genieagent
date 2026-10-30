@@ -38,9 +38,14 @@ def get_one(path,key):
 def clean_header(value):
     return " ".join(str(value or "").replace("\r"," ").replace("\n"," ").split())[:180]
 
-def finance_ready(finance):
+def finance_ready(finance,lead):
     if not finance or finance.get("approval_status")!="approved" or not finance.get("approved_by") or not finance.get("approved_at"):
         return False,"Owner financial review is not approved."
+    payload=lead.get("payload") if isinstance(lead.get("payload"),dict) else {}
+    for field,label in (("financialApproved","financial review"),("scopeConfirmed","scope"),("clientBudgetConfirmed","client budget"),("externalCostsVerified","current external costs")):
+        if payload.get(field)!="Yes": return False,"Owner has not confirmed "+label+"."
+    if not (payload.get("paymentTerms") or "").strip(): return False,"Payment terms are missing from the lead review."
+    if not (payload.get("costEvidenceUrl") or "").strip(): return False,"Current cost/pricing evidence URL is missing from the lead review."
     revenue=float(finance.get("proposed_revenue") or 0)
     costs=float(finance.get("estimated_costs") or 0)
     net=float(finance.get("estimated_net_profit") if finance.get("estimated_net_profit") is not None else revenue-costs)
@@ -131,7 +136,7 @@ def main():
             "owner_id":"eq."+owner_id,"lead_id":"eq."+req["lead_id"],"select":"*","limit":"1"
         }),key)
         if stage in ("financial_proposal_send","agreement_send"):
-            ready,reason=finance_ready(finance)
+            ready,reason=finance_ready(finance,lead)
             if not ready:
                 blocked+=1
                 api("/rest/v1/approval_requests?id=eq."+req["id"],key,"PATCH",{
