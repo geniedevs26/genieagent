@@ -157,7 +157,7 @@ def main():
             domain=host(url)
             combined=re.sub(r"\s+"," ",title+" "+snippet)
             if not url.startswith("http") or "." not in domain or is_skipped(domain): continue
-            if LOW_QUALITY.search(combined) or not INTENT.search(combined): continue
+            if LOW_QUALITY.search(combined): continue
             key=url.split("#")[0].rstrip("/")
             if key in old or any(host(v.get("website",""))==domain for v in old.values()): continue
             checked += 1
