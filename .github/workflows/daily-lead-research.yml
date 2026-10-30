@@ -34,29 +34,19 @@ jobs:
           python-version: "3.12"
       - name: Run security and automation regression checks
         run: |
-          python -m py_compile scripts/lead_research.py scripts/sync_candidates_supabase.py scripts/auto_outreach.py scripts/inbox_monitor.py scripts/check_security.py
+          python -m py_compile scripts/lead_research.py scripts/sync_candidates_supabase.py scripts/auto_outreach.py scripts/inbox_monitor.py scripts/execute_approved_actions.py scripts/check_security.py
           python scripts/check_security.py
-      - name: Discover public business candidates
+      - name: Discover and verify public business requirements (persistent research cursor)
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
         run: python scripts/lead_research.py
       - name: Sync candidates to owner's private CRM when secrets are configured
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
         run: python scripts/sync_candidates_supabase.py
-      - name: Send one initial email to newly confirmed leads when enabled
-        env:
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
-          # Outbound email stays paused until independent lead and recipient verification is enforced.
-          AUTO_OUTREACH_ENABLED: "false"
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          GENIE_SENDER_EMAIL: ${{ secrets.GENIE_SENDER_EMAIL }}
-          SUPPRESSED_EMAILS: ${{ secrets.SUPPRESSED_EMAILS }}
-        run: python scripts/auto_outreach.py
-      - name: Monitor inbox for replies and delivery bounces when IMAP is configured
+      - name: Monitor inbox replies and bounces before any follow-up
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
@@ -66,6 +56,31 @@ jobs:
           IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
           IMAP_FOLDER: ${{ secrets.IMAP_FOLDER }}
         run: python scripts/inbox_monitor.py
+      - name: Send verified initial inquiries and one reply-aware follow-up
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
+          AUTO_OUTREACH_ENABLED: "true"
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          GENIE_SENDER_EMAIL: ${{ secrets.GENIE_SENDER_EMAIL }}
+          SUPPRESSED_EMAILS: ${{ secrets.SUPPRESSED_EMAILS }}
+          IMAP_HOST: ${{ secrets.IMAP_HOST }}
+          IMAP_USERNAME: ${{ secrets.IMAP_USERNAME }}
+          IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
+        run: python scripts/auto_outreach.py
+      - name: Execute only owner-approved client order stages
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          GENIE_SENDER_EMAIL: ${{ secrets.GENIE_SENDER_EMAIL }}
+        run: python scripts/execute_approved_actions.py
       - name: Report safe research summary
         run: |
           python - <<'PY'
