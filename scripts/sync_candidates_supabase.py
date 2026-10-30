@@ -92,9 +92,9 @@ def main():
     # and a source-evidence URL may enter the CRM.
     candidates = [
         item for item in all_rows
-        if item.get("status") == "Confirmed lead"
-        and item.get("clientNeedConfirmed") == "Yes"
-        and item.get("contactVerified") == "Yes"
+        if item.get("status") == "Research candidate"
+        
+        
         and (item.get("needEvidenceUrl") or "").startswith("http")
         and (item.get("email") or "").strip()
         and (item.get("evidence") or "").strip()
@@ -152,12 +152,12 @@ def main():
             "website": item.get("website") or "",
             "source": item.get("source") or item.get("website") or "",
             "service": item.get("service") or "Other / needs confirmation",
-            "status": "Ready",
+            "status": "Research",
             "evidence": item.get("evidence") or "",
-            "notes": "AUTO-QUALIFIED from explicit public requirement text and a published contact. Verify freshness and financials before any quote or spending.",
-            "needStage": "Client need confirmed",
-            "contactVerified": "Yes",
-            "clientNeedConfirmed": "Yes",
+            "notes": "Unverified research candidate. Verify current need and contact before outreach.",
+            "needStage": "Needs human verification",
+            "contactVerified": "No",
+            "clientNeedConfirmed": "No",
             "needEvidenceUrl": item.get("needEvidenceUrl") or item.get("source") or "",
             "financialApproved": "No",
             "scopeConfirmed": "No",
@@ -186,7 +186,7 @@ def main():
             "service_need": item.get("service") or None,
             "evidence_summary": item.get("evidence") or None,
             "evidence_url": item.get("source") or item.get("website") or None,
-            "lead_status": "qualified",
+            "lead_status": "new",
             "payload": payload,
             "updated_at": now,
         })
@@ -223,7 +223,7 @@ def main():
                 key, method="POST", payload=finance_rows, prefer="return=minimal",
             )
     finished = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
-    message = f"Daily run complete: {len(all_rows)} source rows reviewed; {len(candidates)} passed the strict confirmation gate; {len(rows)} new confirmed leads inserted; {len(candidates) - len(rows)} skipped as duplicates."
+    message = f"Daily run complete: {len(all_rows)} source rows reviewed; {len(candidates)} contained on-page requirement evidence; {len(rows)} new research candidates inserted; {len(candidates) - len(rows)} skipped as duplicates."
     request_json(
         f"{SUPABASE_URL}/rest/v1/agent_runs?id=eq.{run_id}",
         key, method="PATCH",
