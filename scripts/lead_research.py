@@ -106,6 +106,7 @@ INTENT = re.compile(
     re.I
 )
 PAID_SIGNAL = re.compile(r"\b(?:paid project|paid work|budget(?:ed)?|project budget|hiring|looking to hire|hire|contract(?:or)?|commission|compensation|rate|quote|request for quote|payment|pay for|fee|funded)\b", re.I)
+UNPAID_SIGNAL = re.compile(r"\b(?:unpaid|volunteer|equity only|no budget|not paid|free work)\b", re.I)
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download", re.I)
 
 def get(url, timeout=5):
@@ -230,7 +231,7 @@ def main():
                 except Exception: pass
             page_text=re.sub(r"\s+"," "," ".join(parser.text))
             # Search snippets alone never qualify a lead.
-            on_page_intent=bool(INTENT.search(page_text)) and bool(PAID_SIGNAL.search(page_text)) and not LOW_QUALITY.search(page_text[:12000])
+            on_page_intent=bool(INTENT.search(page_text)) and bool(PAID_SIGNAL.search(page_text)) and not UNPAID_SIGNAL.search(page_text[:12000]) and not LOW_QUALITY.search(page_text[:12000])
             contact_url=""
             emails=set(EMAIL_RE.findall(page_text))
             for href,label in parser.links:
@@ -252,13 +253,15 @@ def main():
             stats["intent_pages"] += 1
             email=sorted(emails)[0] if emails else ""
             intent_match=INTENT.search(page_text)
-            evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else combined[:500]
+            paid_match=PAID_SIGNAL.search(page_text)
+            evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else combined[:300]
+            paid_excerpt=page_text[max(0,paid_match.start()-100):min(len(page_text),paid_match.end()+180)] if paid_match else ""
             row={
                 "company":title[:180],"country":"Other international","contact":"",
                 "contact_url":contact_url,"email":email,"paidSignal":"Yes","website":url,
                 "source":url,"discovery_method":provider,"service":"Publicly stated business requirement — verify exact scope",
                 "status":"Research candidate",
-                "evidence":"Explicit service requirement and paid-project signal found on source page: "+evidence_excerpt[:500],
+                "evidence":"Service requirement: "+evidence_excerpt[:350]+" | Paid-project evidence: "+paid_excerpt[:200],
                 "notes":"UNVERIFIED: on-page service need, paid-project signal and public contact route found. Verify freshness, client identity, budget, scope and contact before outreach or commitment.",
                 "needStage":"Needs human verification","contactVerified":"No",
                 "clientNeedConfirmed":"No","needEvidenceUrl":url,"financialApproved":"No",
