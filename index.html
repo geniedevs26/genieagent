@@ -240,21 +240,23 @@ async function loadStageApprovals(){
  $('stageOrderSelect').innerHTML=orders.filter(x=>x.order_status==='in_progress').map(x=>'<option value="'+x.id+'">'+esc(x.client_name)+' — '+esc(x.order_status)+'</option>').join('');
  $('stageApprovals').innerHTML=approvals.length?approvals.map(x=>{
   const pending=x.status==='pending';
+  const reopenable=x.status==='approved'&&(x.result_notes||'').includes('execution is blocked:');
   return '<div class="panel" style="margin:10px 0;padding:14px"><div class="row"><strong>'+esc(x.title)+'</strong><span class="pill">'+esc(x.status)+'</span></div><p class="muted">Stage: '+esc(x.stage)+' · Requested: '+esc(new Date(x.requested_at).toLocaleString())+'</p>'+
    (x.stage==='financial_proposal_send'?'<button class="smallbtn" data-review-finance="'+esc(x.lead_id)+'">Review financial details</button>':'')+
    '<label>Email subject</label><input data-stage-subject="'+x.id+'" value="'+esc(x.document_subject||'')+'" '+(!pending?'disabled':'')+'>'+
    '<label>Delivery / document URL</label><input data-stage-url="'+x.id+'" value="'+esc(x.document_url||'')+'" '+(!pending?'disabled':'')+'>'+
    '<label>Full message / agreement / action details</label><textarea data-stage-body="'+x.id+'" '+(!pending?'disabled':'')+'>'+esc(x.document_body||'')+'</textarea>'+
    (x.result_notes?'<p class="muted">'+esc(x.result_notes)+'</p>':'')+
-   (pending?'<div class="actions"><button data-save-stage="'+x.id+'">Save draft</button><button class="primary" data-approve-stage="'+x.id+'">Approve this stage</button><button class="danger" data-reject-stage="'+x.id+'">Reject</button></div>':'')+
+   (pending?'<div class="actions"><button data-save-stage="'+x.id+'">Save draft</button><button class="primary" data-approve-stage="'+x.id+'">Approve this stage</button><button class="danger" data-reject-stage="'+x.id+'">Reject</button></div>':(reopenable?'<div class="actions"><button data-reopen-stage="'+x.id+'">Reopen to correct details</button></div>':''))+
    '</div>';
  }).join(''):'No stage approvals yet.';
 }
 $('stageApprovals').addEventListener('click',async e=>{
- const saveId=e.target.dataset.saveStage,approveId=e.target.dataset.approveStage,rejectId=e.target.dataset.rejectStage,reviewId=e.target.dataset.reviewFinance;
+ const saveId=e.target.dataset.saveStage,approveId=e.target.dataset.approveStage,rejectId=e.target.dataset.rejectStage,reopenId=e.target.dataset.reopenStage,reviewId=e.target.dataset.reviewFinance;
  if(reviewId){editLead(reviewId);return}
- const id=saveId||approveId||rejectId;if(!id)return;
+ const id=saveId||approveId||rejectId||reopenId;if(!id)return;
  const {data:{user}}=await window.genieDb.auth.getUser();
+ if(reopenId){const {error}=await window.genieDb.from('approval_requests').update({status:'pending',decided_at:null,decision_notes:'Reopened by owner to correct blocked details; approval is required again.',result_notes:null}).eq('id',id).eq('owner_id',user.id).eq('status','approved');if(error){alert(error.message);return}await loadStageApprovals();return;}
  if(saveId){
   const subject=document.querySelector('[data-stage-subject="'+id+'"]').value.trim();
   const body=document.querySelector('[data-stage-body="'+id+'"]').value.trim();
