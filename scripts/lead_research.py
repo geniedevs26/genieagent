@@ -75,7 +75,7 @@ INTENT = re.compile(
     r"freelancer needed|designer needed|writer needed|translator needed|looking to hire a (web|software|app) developer",
     re.I
 )
-LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory", re.I)
+LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download", re.I)
 
 def get(url, timeout=5):
     try:
@@ -124,7 +124,7 @@ def main():
                     old[key]=row
     added=0
     checked=0
-    max_checks_per_run=60
+    max_checks_per_run=150
     for query in QUERIES:
         if checked >= max_checks_per_run or added >= 50: break
         for title,url,snippet in search(query):
@@ -160,20 +160,20 @@ def main():
                     break
             emails={e.lower() for e in emails if not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com"])}
             # Qualification requires explicit intent on the source page plus a publicly listed email.
-            if not (on_page_intent and emails):
+            if not on_page_intent:
                 continue
-            email=sorted(emails)[0]
+            email=sorted(emails)[0] if emails else ""
             intent_match=INTENT.search(page_text)
             evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else combined[:500]
             row={
                 "company":title[:180],"country":"Other international","contact":"",
                 "email":email,"website":url,
                 "source":url,"service":"Publicly stated web/automation requirement",
-                "status":"Confirmed lead",
+                "status":"Research candidate",
                 "evidence":"Explicit requirement found on source page: "+evidence_excerpt[:500],
                 "notes":"AUTO-QUALIFIED: source page explicitly states a requirement and publishes a contact email. Verify freshness and scope before a financial commitment.",
-                "needStage":"Client need confirmed","contactVerified":"Yes",
-                "clientNeedConfirmed":"Yes","needEvidenceUrl":url,"financialApproved":"No",
+                "needStage":"Needs human verification","contactVerified":"No",
+                "clientNeedConfirmed":"No","needEvidenceUrl":url,"financialApproved":"No",
                 "discovered_at":datetime.now(timezone.utc).isoformat()
             }
             old[key]=row;added+=1
@@ -184,6 +184,6 @@ def main():
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
         for row in old.values():w.writerow({k:row.get(k,"") for k in cols})
-    print(f"Saved {len(old)} confirmed leads; {added} new leads passed on-page requirement and public-contact checks. Unverified search matches are discarded.")
+    print(f"Saved {len(old)} research candidates; {added} new pages contained on-page requirement wording. Buyer intent and contact details are NOT marked confirmed.")
 
 if __name__=="__main__": main()
