@@ -230,7 +230,7 @@ def main():
     owner_id=owner["id"]
     query=urllib.parse.urlencode({
         "owner_id":"eq."+owner_id,
-        "action_type":"in.(email,follow_up,proposal,agreement,milestone_delivery,final_delivery,inbound_reply)",
+        "action_type":"in.(email,follow_up,proposal,financial_proposal_send,agreement,agreement_send,milestone_delivery,final_delivery,inbound_reply)",
         "select":"id,lead_id,recipient,approval_status,draft_subject,action_type",
         "order":"created_at.desc","limit":"3000"
     })
