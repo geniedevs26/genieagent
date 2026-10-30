@@ -98,14 +98,20 @@ INTENT = re.compile(
 )
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download", re.I)
 
-def get(url, timeout=5):
-    try:
-        req = Request(url, headers=HEADERS)
-        with urlopen(req, timeout=timeout) as r:
-            if r.status != 200: return ""
-            return r.read(800_000).decode("utf-8", "ignore")
-    except Exception:
-        return ""
+def get(url, timeout=8):
+    # Retry transient blocks/timeouts before the caller moves to another engine.
+    for attempt in range(3):
+        try:
+            req = Request(url, headers=HEADERS)
+            with urlopen(req, timeout=timeout) as r:
+                if r.status != 200: return ""
+                return r.read(800_000).decode("utf-8", "ignore")
+        except Exception as exc:
+            if attempt == 2:
+                print(f"Request failed after retries: {urlparse(url).netloc} ({type(exc).__name__})")
+            else:
+                time.sleep(1 + attempt)
+    return ""
 
 class Links(HTMLParser):
     def __init__(self):
@@ -161,7 +167,7 @@ def is_skipped(domain):
 def main():
     os.makedirs("data",exist_ok=True)
     old={}
-    stats={"queries":0,"rss_items":0,"empty_searches":0,"pages_fetched":0,"page_failures":0,"intent_pages":0,"new_candidates":0}
+    stats={"queries":0,"search_results":0,"empty_searches":0,"pages_fetched":0,"page_failures":0,"intent_pages":0,"new_candidates":0}
     if os.path.exists(OUT):
         with open(OUT,newline="",encoding="utf-8-sig") as f:
             for row in csv.DictReader(f):
@@ -176,7 +182,7 @@ def main():
         stats["queries"] += 1
         if checked >= max_checks_per_run or added >= 50: break
         results = search(query)
-        stats["rss_items"] += len(results)
+        stats["search_results"] += len(results)
         if not results: stats["empty_searches"] += 1
         for title,url,snippet,provider in results:
             if checked >= max_checks_per_run or added >= 50: break
