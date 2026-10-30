@@ -94,7 +94,7 @@ def main():
     processed_ids = set()
     for action in actions:
         if action.get("action_type") == "inbound_reply":
-            match = re.search(r"Message-ID:\\s*(.+)$", action.get("draft_subject") or "")
+            match = re.search(r"Message-ID:\s*(.+)$", action.get("draft_subject") or "")
             if match:
                 processed_ids.add(match.group(1).strip())
         elif action.get("recipient") and action.get("approval_status") in ("pending_verification", "delivered", "delivery_verified"):
