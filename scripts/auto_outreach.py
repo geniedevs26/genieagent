@@ -7,11 +7,17 @@ Set AUTO_OUTREACH_ENABLED=true only after verifying the sender and local rules.
 Never sends proposals, quotes, payment requests, or follow-ups.
 """
 import json, os, smtplib, sys, uuid, urllib.parse, urllib.request, urllib.error
+from urllib.parse import urlparse
 from datetime import datetime, timezone
 from email.message import EmailMessage
 
 SUPABASE_URL = "https://irpqaoooosrjhviwdddo.supabase.co"
 DAILY_LIMIT = 5
+PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"
+NON_BUYER_PUBLISHERS = {"hubspot.com"}
+
+def domain_of(url):
+    return (urlparse(url or "").hostname or "").lower().removeprefix("www.")
 
 
 def api(path, key, method="GET", payload=None, prefer=None):
@@ -88,8 +94,14 @@ def main():
             skipped+=1
             print("Skipped suppressed recipient: "+email)
             continue
-        if lead.get("id") in already or not email or not website or not evidence:
-            skipped+=1; continue
+        evidence_url=lead.get("evidence_url") or website
+        source_domain=domain_of(evidence_url)
+        if (lead.get("id") in already or not email or not website or not evidence
+                or source_domain == "hubspot.com" or source_domain.endswith(".hubspot.com")):
+            skipped+=1
+            if source_domain == "hubspot.com" or source_domain.endswith(".hubspot.com"):
+                print("Skipped non-buyer educational/publisher page: "+evidence_url)
+            continue
         if payload.get("clientNeedConfirmed")!="Yes" or payload.get("contactVerified")!="Yes" or not payload.get("needEvidenceUrl"):
             skipped+=1; continue
         company=lead.get("company_name") or payload.get("company") or "your team"
@@ -107,7 +119,8 @@ def main():
             "If the requirement is still active, you can reply with the scope and expected timeline; "
             "I will then provide a clearly scoped option for your review. This message is an initial inquiry, not a quote or commitment.\n\n"
             "If this is no longer relevant or you prefer no further contact, reply with “No further contact” and I will suppress further outreach.\n\n"
-            "Regards,\nSiva Satya Prasad\nGenieDevs\n"+website+"\n"
+            "Portfolio: "+PORTFOLIO_URL+"\n\n"
+            "Regards,\nSiva Satya Prasad\nGenieDevs\n"
         )
         action_id=str(uuid.uuid4())
         # Persist a pending action before sending. If logging fails, do not send.
