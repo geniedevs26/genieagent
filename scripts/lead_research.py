@@ -162,6 +162,16 @@ class Links(HTMLParser):
         clean=" ".join(data.split())
         if clean: self.text.append(clean)
 
+def extract_public_phone(text, links):
+    """Extract a plausible phone number visibly published on the business page."""
+    values=[urllib.parse.unquote(href[4:].split("?")[0]) for href,label in links if href.lower().startswith("tel:")]
+    values.extend(re.findall(r"(?<!\w)(?:\+?\d[\d\s()./-]{6,}\d)(?!\w)", text or ""))
+    for value in values:
+        digits=re.sub(r"\D","",value)
+        if 8 <= len(digits) <= 15:
+            return ("+" if value.strip().startswith("+") else "")+digits
+    return ""
+
 def host(url):
     try: return (urlparse(url).hostname or "").lower().removeprefix("www.")
     except Exception: return ""
@@ -347,6 +357,8 @@ def main():
             and not LOW_QUALITY.search(page_text[:12000])
             and not JOB_LISTING.search(page_text[:12000]))
         emails=set(EMAIL_RE.findall(page_text))
+        phone=extract_public_phone(page_text,parser.links)
+        phone_source=url if phone else ""
         contact_url=""
         for href,label in parser.links:
             candidate=urljoin(url,href)
@@ -383,7 +395,7 @@ def main():
             evidence="Direct requirement: "+evidence_excerpt[:350]+" | Paid signal: "+paid_excerpt[:180]
             candidates.append({
                 "company":company,"country":country_for(url,page_text),"contact":"","contact_url":contact_url or url,
-                "email":email,"paidSignal":"Yes","website":url,"source":url,"discovery_method":provider,
+                "email":email,"phone":phone,"phone_source":phone_source,"paidSignal":"Yes","website":url,"source":url,"discovery_method":provider,
                 "service":service_for(evidence_excerpt+" "+paid_excerpt),"status":"Qualified lead",
                 "evidence":evidence,
                 "notes":"Automatically qualified from the business's own public page: first-person project requirement, nearby paid/contract signal and a publicly listed contact email. This is not a guarantee of delivery or client acceptance.",
@@ -394,7 +406,7 @@ def main():
         if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"evidence_excerpt":evidence_excerpt[:500] or None,"checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
     if key and owner_id:
         save_seen_pages(key,seen_records)
-    cols=["company","country","contact","contact_url","email","paidSignal","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at","contactVerificationMethod"]
+    cols=["company","country","contact","contact_url","email","paidSignal","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at","contactVerificationMethod","phone","phone_source"]
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
         for row in candidates:w.writerow({k:row.get(k,"") for k in cols})
