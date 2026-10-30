@@ -148,7 +148,7 @@ def main():
         prior=known_by_url.get(website)
         if prior:
             prior_payload=prior.get("payload") if isinstance(prior.get("payload"),dict) else {}
-            if (prior.get("lead_status") not in ("research","needs_review")
+            if (prior.get("lead_status") != "research"
                     or prior.get("id") in contacted_ids
                     or prior_payload.get("doNotContact")
                     or prior_payload.get("status") in ("Opted out","Not interested")):
