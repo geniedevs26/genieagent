@@ -110,8 +110,8 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
             "scope_summary":scope,"agreed_currency":currency,
             "order_status":"awaiting_financial_approval","client_response_at":now,
             "proposal_requested_at":now,
-            "client_accepted_at":now if order_accept else None,
-            "client_acceptance_evidence":safe_evidence if order_accept else None
+            "client_accepted_at":None,
+            "client_acceptance_evidence":None
         }],"return=representation") or []
         if not created: raise RuntimeError("Client order opportunity could not be recorded.")
         order=created[0]
