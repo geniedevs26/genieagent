@@ -258,7 +258,10 @@ def main():
         if status!="OK": raise RuntimeError("Could not open IMAP folder "+folder)
         status,data=mail.search(None,"UNSEEN")
         if status!="OK": raise RuntimeError("Could not search unread mailbox messages")
-        for msg_num in (data[0].split() if data and data[0] else []):
+        # Process a bounded oldest-first batch so a large unread mailbox cannot stall
+        # the hourly workflow; the next run continues with the remaining unread messages.
+        unread=(data[0].split() if data and data[0] else [])
+        for msg_num in unread[:100]:
             status,parts=mail.fetch(msg_num,"(RFC822)")
             if status!="OK" or not parts or not isinstance(parts[0],tuple): continue
             msg=email.message_from_bytes(parts[0][1])
@@ -276,6 +279,8 @@ def main():
                 recipient=next((e for e in candidates if e in sent_by_recipient),"")
                 if not recipient:
                     ignored+=1
+                    mail.store(msg_num,"+FLAGS","\\Seen")
+                    processed+=1
                     continue
                 original=sent_by_recipient[recipient]
                 now=datetime.now(timezone.utc).isoformat()
@@ -301,6 +306,8 @@ def main():
                 original=sent_by_recipient.get(sender)
                 if not original:
                     ignored+=1
+                    mail.store(msg_num,"+FLAGS","\\Seen")
+                    processed+=1
                     continue
                 now=datetime.now(timezone.utc).isoformat()
                 api("/rest/v1/outreach_actions?id=eq."+original["id"],key,"PATCH",{
