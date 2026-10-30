@@ -88,17 +88,18 @@ def main():
 
     with open(CSV_PATH, newline="", encoding="utf-8-sig") as source:
         all_rows = list(csv.DictReader(source))
-    # Strict gate: only explicitly confirmed requirements with a public contact
-    # and a source-evidence URL may enter the CRM.
+    # Only records that passed first-person requirement, paid-signal,
+    # same-site public email and source-evidence checks enter the qualified CRM.
     candidates = [
         item for item in all_rows
-        if item.get("status") == "Research candidate"
-        
-        
+        if item.get("status") == "Qualified lead"
+        and item.get("needStage") == "Client need confirmed"
+        and item.get("clientNeedConfirmed") == "Yes"
+        and item.get("contactVerified") == "Yes"
         and (item.get("needEvidenceUrl") or "").startswith("http")
         and (item.get("evidence") or "").strip()
         and item.get("paidSignal") == "Yes"
-        and bool(item.get("email") or item.get("contact_url"))
+        and bool(item.get("email"))
     ]
     run_id = str(uuid.uuid4())
     started = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
@@ -154,13 +155,15 @@ def main():
             "website": item.get("website") or "",
             "source": item.get("source") or item.get("website") or "",
             "service": item.get("service") or "Other / needs confirmation",
-            "status": "Research",
+            "status": "Ready",
             "evidence": item.get("evidence") or "",
-            "notes": "Unverified research candidate. Verify current need and contact before outreach.",
-            "needStage": "Needs human verification",
-            "contactVerified": "No",
-            "clientNeedConfirmed": "No",
+            "notes": "Automatically qualified from the business own public page: first-person requirement, nearby paid/contract signal and public contact email. SMTP delivery and client acceptance are still unverified.",
+            "needStage": "Client need confirmed",
+            "contactVerified": "Yes",
+            "clientNeedConfirmed": "Yes",
             "needEvidenceUrl": item.get("needEvidenceUrl") or item.get("source") or "",
+            "contactVerificationMethod": item.get("contactVerificationMethod") or "Public email listed on official business website",
+            "lastVerifiedAt": now,
             "financialApproved": "No",
             "scopeConfirmed": "No",
             "clientBudgetConfirmed": "No",
@@ -187,8 +190,10 @@ def main():
             "contact_email": item.get("email") or None,
             "service_need": item.get("service") or None,
             "evidence_summary": item.get("evidence") or None,
-            "evidence_url": item.get("source") or item.get("website") or None,
-            "lead_status": "research",
+            "evidence_url": item.get("needEvidenceUrl") or item.get("source") or item.get("website") or None,
+            "contact_form_url": item.get("contact_url") or None,
+            "last_verified_at": now,
+            "lead_status": "qualified",
             "payload": payload,
             "updated_at": now,
         })
@@ -202,28 +207,7 @@ def main():
             payload=rows,
             prefer="return=minimal",
         )
-        # Create a pending financial gate for each newly confirmed lead. No quote,
-        # paid tool, or client commitment is authorized by discovery alone.
-        finance_rows = []
-        for row in []:
-            finance_rows.append({
-                "owner_id": owner_id,
-                "lead_id": row["id"],
-                "approval_type": "quote",
-                "approval_status": "pending",
-                "currency": row["payload"].get("dealCurrency", "USD"),
-                "proposed_revenue": 0,
-                "estimated_costs": 0,
-                "scope_summary": "Confirm the client's exact requested deliverable, scope, budget, payment terms and timeline before approving a quote.",
-                "cost_breakdown": {"tools": 0, "fees": 0, "delivery": 0, "contingency": 0, "tax_reserve": 0},
-                "evidence_url": row.get("evidence_url"),
-                "payment_terms": None,
-            })
-        if finance_rows:
-            request_json(
-                f"{SUPABASE_URL}/rest/v1/financial_approvals",
-                key, method="POST", payload=finance_rows, prefer="return=minimal",
-            )
+
     finished = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
     message = f"Daily run complete: {len(all_rows)} source rows reviewed; {len(candidates)} contained on-page requirement evidence; {len(rows)} new research candidates inserted; {len(candidates) - len(rows)} skipped as duplicates."
     request_json(
