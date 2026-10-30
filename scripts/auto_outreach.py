@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Personalised, respectful first contact and one reply-aware follow-up.
+"""Personalised, respectful first contact and up to three reply-aware follow-ups.
 
 Each prospect message is composed from that lead's verified requirement and the
 specific matching service. The portfolio is included in every prospecting
@@ -294,8 +294,8 @@ def main():
     msg=(f"Personalised outreach completed: {sent} SMTP-accepted messages ({followups_sent} follow-ups), "
          f"{skipped} skipped, {held_no_match} held because no clear service match/message uniqueness check failed, "
          f"{failures} failed. Every prospecting message includes the portfolio and is built from the lead's own "
-         f"requirement. One follow-up is eligible after {FOLLOWUP_AFTER_DAYS} days only when inbox monitoring "
-         "is configured and no reply/bounce/opt-out exists. SMTP acceptance is not proof of delivery.")
+         f"requirement. Up to {MAX_FOLLOWUPS} follow-ups are eligible on days {', '.join(map(str, FOLLOWUP_DAYS))} "
+         "only when inbox monitoring is configured and no reply/bounce/opt-out exists. SMTP acceptance is not proof of delivery.")
     print(msg)
     if summary_path:
         with open(summary_path,"a",encoding="utf-8") as f: f.write("\n## Automatic outreach\n\n"+msg+"\n")
