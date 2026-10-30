@@ -73,6 +73,16 @@ QUERIES = [
     'CRM workflow automation project requirements',
     'Excel data cleanup freelancer needed',
     'mobile app developer project inquiry',
+    '"hiring a freelance web developer" small business',
+    '"paid website redesign project" small business',
+    '"website development" "project budget" business',
+    '"need a WordPress developer" budget',
+    '"looking to hire" chatbot developer business',
+    '"contract Excel automation consultant" business',
+    '"paid Telugu translation project" business',
+    '"hiring graphic designer" small business project',
+    '"website maintenance contract" small business',
+    '"request for quote" website development small business',
 ]
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
 SKIP_DOMAINS = {
@@ -231,7 +241,9 @@ def main():
                 except Exception: pass
             page_text=re.sub(r"\s+"," "," ".join(parser.text))
             # Search snippets alone never qualify a lead.
-            on_page_intent=bool(INTENT.search(page_text)) and bool(PAID_SIGNAL.search(page_text)) and not UNPAID_SIGNAL.search(page_text[:12000]) and not LOW_QUALITY.search(page_text[:12000])
+            intent_probe=INTENT.search(page_text)
+            paid_probe=PAID_SIGNAL.search(page_text)
+            on_page_intent=bool(intent_probe and paid_probe and abs(intent_probe.start()-paid_probe.start())<=2500) and not UNPAID_SIGNAL.search(page_text[:12000]) and not LOW_QUALITY.search(page_text[:12000])
             contact_url=""
             emails=set(EMAIL_RE.findall(page_text))
             for href,label in parser.links:
