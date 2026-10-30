@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Monitor inbound replies/bounces and create owner-approval requests after client interest.
+"""Monitor inbound replies, create owner approvals, and send narrowly scoped AI email replies.
 
-This process never sends a client-facing response. It only records replies, stops outreach
-on opt-out, and creates a pending approval when a client asks for pricing or accepts a stage.
+Pricing, contractual, timing, meeting, legal, security and other commitment requests are held
+for owner review. Opt-outs and bounces stop further outreach.
 """
 import email
 import imaplib
@@ -225,11 +225,11 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
     return "reply_recorded"
 
 def ai_reply_text(account_id, token, subject, body, lead):
-    if not account_id or not token or AUTO_REPLY_BLOCK_RE.search(subject+"\\n"+body):
+    if not account_id or not token or AUTO_REPLY_BLOCK_RE.search(subject+"\n"+body):
         return ""
     prompt={"messages":[
-      {"role":"system","content":"Return only JSON {\\"reply\\":\\"...\"}. Write a brief email for Siva Satya Prasad. Facts: services include responsive websites/web apps, landing pages, AI chatbots, Android apps, workflow automation, Excel/Word/PowerPoint/data work, Telugu-English translation/QA, content/SEO/technical writing and graphics. Portfolio https://sivaprasad-portfolio.pages.dev/. Coordinate by email. Never invent client history, credentials, years, availability, prices, timelines, guarantees or compliance. Never accept work, negotiate, quote, promise or agree to terms. If asked about price, budget, payment, contract, deadline, availability, calls/meetings, legal/security/confidential matters, return empty reply. For simple capability questions, answer using only facts and ask for non-confidential scope details by email. Under 100 words."},
-      {"role":"user","content":"Service: "+str(lead.get("service_need") or "")+"\\nRequirement: "+str(lead.get("evidence_summary") or "")+"\\nSubject: "+subject[:200]+"\\nMessage: "+body[:2500]}
+      {"role":"system","content":"Return only a JSON object with one string field named reply. Do not add markdown or explanation. Write a brief email for Siva Satya Prasad. Facts: services include responsive websites/web apps, landing pages, AI chatbots, Android apps, workflow automation, Excel/Word/PowerPoint/data work, Telugu-English translation/QA, content/SEO/technical writing and graphics. Portfolio https://sivaprasad-portfolio.pages.dev/. Coordinate by email. Never invent client history, credentials, years, availability, prices, timelines, guarantees or compliance. Never accept work, negotiate, quote, promise or agree to terms. If asked about price, budget, payment, contract, deadline, availability, calls/meetings, legal/security/confidential matters, return empty reply. For simple capability questions, answer using only facts and ask for non-confidential scope details by email. Under 100 words."},
+      {"role":"user","content":"Service: "+str(lead.get("service_need") or "")+"\nRequirement: "+str(lead.get("evidence_summary") or "")+"\nSubject: "+subject[:200]+"\nMessage: "+body[:2500]}
     ],"max_tokens":220,"temperature":0.1}
     url="https://api.cloudflare.com/client/v4/accounts/"+account_id+"/ai/run/@cf/meta/llama-3.1-8b-instruct-fp8"
     req=urllib.request.Request(url,data=json.dumps(prompt).encode(),headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"},method="POST")
@@ -237,12 +237,12 @@ def ai_reply_text(account_id, token, subject, body, lead):
         with urllib.request.urlopen(req,timeout=30) as response:
             data=json.loads(response.read().decode("utf-8","replace"))
         raw=(data.get("result") or {}).get("response") or ""
-        match=re.search(r"\\{.*\\}",raw,re.S)
+        match=re.search(r"\{.*\}",raw,re.S)
         if not match: return ""
         answer=str(json.loads(match.group(0)).get("reply") or "").strip()
         if not answer or len(answer)>900 or AUTO_REPLY_BLOCK_RE.search(answer): return ""
-        if re.search(r"\\b(?:guarantee|promise|certified|available immediately|will finish by|my clients include)\\b",answer,re.I): return ""
-        return re.sub(r"\\s+"," ",answer)
+        if re.search(r"\b(?:guarantee|promise|certified|available immediately|will finish by|my clients include)\\b",answer,re.I): return ""
+        return re.sub(r"\s+"," ",answer)
     except Exception as exc:
         print("AI reply held safely: "+str(exc)[:180])
         return ""
@@ -258,7 +258,7 @@ def send_ai_reply(key, owner_id, lead, recipient, subject, answer, message_id, h
     if message_id:
         msg["In-Reply-To"]=message_id
         msg["References"]=message_id
-    msg.set_content(answer+"\\n\\nKind regards,\\nSiva Satya Prasad\\nGenieDevs")
+    msg.set_content(answer+"\n\nKind regards,\nSiva Satya Prasad\nGenieDevs")
     api("/rest/v1/outreach_actions",key,"POST",[{"id":action_id,"owner_id":owner_id,"lead_id":lead["id"],"action_type":"ai_reply","draft_subject":msg["Subject"],"draft_body":answer,"recipient":recipient,"approval_status":"pending","result_notes":"Bounded AI factual reply; price/commitment/call filters passed."}],"return=minimal")
     try:
         with smtplib.SMTP(host,port,timeout=25) as server:
@@ -444,7 +444,7 @@ def main():
         except Exception: pass
         mail.logout()
 
-    msg=f"Inbox monitor completed: {replies} replies, {bounces} bounces, {optouts} opt-outs, {orders_created} client proposal opportunities and {approvals_created} stage approvals created; {ignored} unrelated recent messages ignored without changing mailbox read state."
+    msg=f"Inbox monitor completed: {replies} replies, {ai_replies} AI replies SMTP-accepted, {ai_held} held for review, {bounces} bounces, {optouts} opt-outs, {orders_created} proposal opportunities and {approvals_created} stage approvals; {ignored} unrelated messages ignored. SMTP acceptance is not proof of delivery."
     print(msg)
     if summary_path:
         with open(summary_path,"a",encoding="utf-8") as f: f.write("\n## Inbox monitoring\n\n"+msg+"\n")
