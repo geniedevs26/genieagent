@@ -8,7 +8,7 @@ Owner-only automated client acquisition system: scheduled public research, stric
 - Daily workflow: https://github.com/geniedevs26/genieagent/actions/workflows/daily-lead-research.yml
 
 ## Automated workflow
-1. GitHub Actions runs every four hours (cron `0 */4 * * *`), plus on configured code changes or manual dispatch.
+1. GitHub Actions runs every hour (cron `17 * * * *`), plus on configured code changes or manual dispatch.
 2. Public search results are discovery hints only. A research candidate requires requirement wording on the source page; a public email is optional because a verified business contact form may be the contact route. Search snippets alone are discarded.
 3. Unverified research candidates sync to the owner's private Supabase CRM with status `research`. They are not confirmed buyers and must not be contacted until the client identity, current requirement, contact route and applicable outreach rules are verified.
 4. Financial approval is required before any agreement, quote that creates a commitment, purchase, paid tool, or spending. Discovery does not create an approval or imply a client order.
@@ -21,6 +21,20 @@ In GitHub **Settings → Secrets and variables → Actions → New repository se
 - `GENIE_OWNER_EMAIL`: exact email of the owner account in Supabase Authentication.
 
 Without those two secrets, the workflow safely skips private CRM sync. No recurring manual lead entry is intended; lead research and qualifying records are automated after this one-time setup. For automatic initial email outreach (maximum 5/day, only after requirement and contact verification), also add `SMTP_HOST`, `SMTP_PORT` (normally `587`), `SMTP_USERNAME`, `SMTP_PASSWORD`, `GENIE_SENDER_EMAIL`, and `AUTO_OUTREACH_ENABLED` with value `true`. Use an SMTP account you control; for Gmail, use an App Password if your account supports it, never your normal password. The sender must be authorized to send from `GENIE_SENDER_EMAIL`. If any sender setting is missing, outreach safely skips. Every send attempt is logged before execution; only initial inquiries are sent—no automatic follow-ups, quotes, or payment requests.
+
+
+## Inbox replies and bounce handling
+An optional IMAP monitor runs in the same hourly workflow when mailbox secrets are configured. Add:
+- `IMAP_HOST`: mailbox IMAP server hostname (for example, your email provider's documented IMAP host).
+- `IMAP_PORT`: normally `993`.
+- `IMAP_USERNAME`: mailbox login.
+- `IMAP_PASSWORD`: an app password or provider-issued mailbox credential; never use or share your normal password if the provider offers app passwords.
+- `IMAP_FOLDER`: normally `INBOX`.
+
+The monitor reads unread messages only. A matched inbound reply updates the lead and verifies delivery of the original message; a matched bounce marks the attempt bounced and revokes that email contact's verified flag. Unmatched messages are left unread. It does not store full email bodies, send replies, or send follow-ups. SMTP acceptance alone remains unverified. Positive delivery for messages with no reply still requires a delivery-status webhook/provider; this monitor cannot prove that a silent recipient received an email.
+
+## Calling and follow-ups
+Automated phone calls are not enabled: a real calling provider, credentials, and legally compliant caller identity are required. The dashboard must not count owner-entered call notes as connected calls. Automatic follow-ups are intentionally disabled until the initial email's delivery is verified and a safe stop-on-reply/stop-on-bounce rule can be enforced. No client-facing follow-up, quote, proposal, agreement or payment request is sent without the required owner permission.
 
 ## Financial permission boundary
 Financial approvals are deliberately **not automatic**. Confirm the real project scope, client budget/payment, revenue, all costs, net profit, pricing evidence and payment terms before approving. Discovery alone cannot approve spending or a quote. Approval is recorded in the private database and audit history.
