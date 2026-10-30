@@ -178,7 +178,7 @@ def main():
     added=0
     checked=0
     batch_size=20
-    batch_index=(int(datetime.now(timezone.utc).timestamp())//14400) % ((len(QUERIES)+batch_size-1)//batch_size)
+    batch_index=(int(datetime.now(timezone.utc).timestamp())//3600) % ((len(QUERIES)+batch_size-1)//batch_size)
     query_batch=QUERIES[batch_index*batch_size:(batch_index+1)*batch_size]
     max_checks_per_run=60
     for query in query_batch:
