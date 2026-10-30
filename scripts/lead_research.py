@@ -148,8 +148,8 @@ def search(query):
         ("Ecosia HTML","https://www.ecosia.org/search?q="+quote(query),"html"),
     ]
     with ThreadPoolExecutor(max_workers=len(providers)) as pool:
-        fetched=list(pool.map(lambda item:(item[0],item[2],get(item[1],timeout=5)),providers))
-    for provider,kind,raw in fetched:
+        fetched=list(pool.map(lambda item:(item[0],item[1],item[2],get(item[1],timeout=5)),providers))
+    for provider,base_url,kind,raw in fetched:
         if not raw: continue
         if kind=="rss":
             try:
@@ -161,7 +161,7 @@ def search(query):
             try: parser.feed(raw)
             except Exception: continue
             for href,label in parser.links:
-                target=urljoin(url,href)
+                target=urljoin(base_url,href)
                 parsed=urlparse(target)
                 if parsed.path=="/url":
                     qv=parse_qs(parsed.query).get("q") or parse_qs(parsed.query).get("url") or []
