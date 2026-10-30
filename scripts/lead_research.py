@@ -8,6 +8,7 @@ the client explicitly confirms the requirement and contact details are verified.
 """
 import csv, html, os, re, time
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote, urlparse, urljoin, parse_qs, unquote
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
@@ -146,8 +147,9 @@ def search(query):
         ("Startpage HTML","https://www.startpage.com/sp/search?query="+quote(query),"html"),
         ("Ecosia HTML","https://www.ecosia.org/search?q="+quote(query),"html"),
     ]
-    for provider,url,kind in providers:
-        raw=get(url,timeout=7)
+    with ThreadPoolExecutor(max_workers=len(providers)) as pool:
+        fetched=list(pool.map(lambda item:(item[0],item[2],get(item[1],timeout=5)),providers))
+    for provider,kind,raw in fetched:
         if not raw: continue
         if kind=="rss":
             try:
@@ -195,26 +197,30 @@ def main():
                     old[key]=row
     added=0
     checked=0
-    batch_size=20
-    batch_index=(int(datetime.now(timezone.utc).timestamp())//3600) % ((len(QUERIES)+batch_size-1)//batch_size)
-    query_batch=QUERIES[batch_index*batch_size:(batch_index+1)*batch_size]
-    max_checks_per_run=60
+    # Exhaust the entire query bank every cycle. Do not stop after one provider
+    # or one query batch returns nothing; provider fallback runs in parallel.
+    query_batch=QUERIES
+    max_checks_per_run=40
+    discovered=[]
     for query in query_batch:
         stats["queries"] += 1
-        if checked >= max_checks_per_run or added >= 50: break
-        results = search(query)
+        results=search(query)
         stats["search_results"] += len(results)
         if not results: stats["empty_searches"] += 1
-        for title,url,snippet,provider in results:
+        discovered.extend(results)
+    seen_pages=set()
+    for title,url,snippet,provider in discovered:
             if checked >= max_checks_per_run or added >= 50: break
             domain=host(url)
             combined=re.sub(r"\s+"," ",title+" "+snippet)
             if not url.startswith("http") or "." not in domain or is_skipped(domain): continue
             if LOW_QUALITY.search(combined): continue
             key=url.split("#")[0].rstrip("/")
+            if key in seen_pages: continue
+            seen_pages.add(key)
             if key in old or any(host(v.get("website",""))==domain for v in old.values()): continue
             checked += 1
-            page=get(url)
+            page=get(url,timeout=4)
             if page: stats["pages_fetched"] += 1
             else: stats["page_failures"] += 1
             parser=Links()
@@ -231,7 +237,7 @@ def main():
                 if host(candidate)!=domain: continue
                 if any(k in (href+" "+label).lower() for k in ["contact","about"]):
                     contact_url=candidate
-                    contact_html=get(candidate)
+                    contact_html=get(candidate,timeout=3)
                     if contact_html:
                         cp=Links()
                         try: cp.feed(contact_html)
@@ -248,7 +254,7 @@ def main():
             evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else combined[:500]
             row={
                 "company":title[:180],"country":"Other international","contact":"",
-                "email":email,"website":url,
+                "contact_url":contact_url,"email":email,"website":url,
                 "source":url,"discovery_method":provider,"service":"Publicly stated business requirement — verify exact scope",
                 "status":"Research candidate",
                 "evidence":"Explicit requirement found on source page: "+evidence_excerpt[:500],
@@ -259,8 +265,6 @@ def main():
             }
             old[key]=row;added+=1;stats["new_candidates"] += 1
             if added>=50: break
-            time.sleep(0.3)
-        if added>=50: break
     cols=["company","country","contact","contact_url","email","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at"]
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
