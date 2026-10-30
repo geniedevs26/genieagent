@@ -8,7 +8,7 @@ the client explicitly confirms the requirement and contact details are verified.
 """
 import csv, html, os, re, time
 from datetime import datetime, timezone
-from urllib.parse import quote, urlparse, urljoin
+from urllib.parse import quote, urlparse, urljoin, parse_qs, unquote
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
 from html.parser import HTMLParser
@@ -143,6 +143,9 @@ def search(query):
             except Exception: continue
             for href,label in parser.links:
                 target=urljoin(url,href)
+                if "duckduckgo.com" in host(target):
+                    redirected=parse_qs(urlparse(target).query).get("uddg",[])
+                    if redirected: target=unquote(redirected[0])
                 if host(target) and "duckduckgo.com" not in host(target):
                     results.append((label or target,target,"",provider))
     unique=[]; seen=set()
