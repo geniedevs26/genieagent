@@ -52,7 +52,12 @@ for item in [
 
 for item in [
     'on_page_intent=bool(INTENT.search(page_text))',
-    'if not on_page_intent:',
+    'if not on_page_intent or not (emails or contact_url):',
+    'PAID_SIGNAL',
+    'UNPAID_SIGNAL',
+    'query_batch=QUERIES',
+    'ThreadPoolExecutor',
+    '"paidSignal":"Yes"',
     '"status":"Research candidate"',
     '"clientNeedConfirmed":"No"',
     '"contactVerified":"No"',
@@ -65,6 +70,8 @@ for item in [
     'item.get("needEvidenceUrl")',
     '"lead_status": "research"',
     'item.get("needEvidenceUrl")',
+    'item.get("paidSignal") == "Yes"',
+    'item.get("contact_url")',
     'research_completed',
     'financial_approvals',
 ]:
