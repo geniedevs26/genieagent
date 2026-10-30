@@ -52,18 +52,18 @@ for item in [
 
 for item in [
     'on_page_intent=bool(INTENT.search(page_text))',
-    'if not (on_page_intent and emails):',
-    '"status":"Confirmed lead"',
-    '"clientNeedConfirmed":"Yes"',
-    '"contactVerified":"Yes"',
+    'if not on_page_intent:',
+    '"status":"Research candidate"',
+    '"clientNeedConfirmed":"No"',
+    '"contactVerified":"No"',
 ]:
     if item not in research:
         fail(f"missing strict research qualification gate: {item}")
 
 for item in [
-    'item.get("status") == "Confirmed lead"',
-    'item.get("clientNeedConfirmed") == "Yes"',
-    'item.get("contactVerified") == "Yes"',
+    'item.get("status") == "Research candidate"',
+    'item.get("needEvidenceUrl")',
+    '"lead_status": "research"',
     'item.get("needEvidenceUrl")',
     '"lead_status": "qualified"',
     'research_completed',
@@ -113,6 +113,6 @@ for path in ROOT.rglob("*"):
         if re.search(pattern,content):
             fail(f"possible secret material detected in {path.relative_to(ROOT)}")
 
-print("PASS: auth gate, strict confirmed-lead qualification, private CRM, audit trail, financial gate, guarded outreach, and secret-pattern checks.")
+print("PASS: auth gate, research-stage separation, private CRM, audit trail, financial gate, guarded outreach, and secret-pattern checks.")
 
 # Regression policy is maintained alongside the research-first qualification workflow.
