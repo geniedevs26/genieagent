@@ -109,18 +109,19 @@ def main():
         message=EmailMessage()
         message["From"]=sender
         message["To"]=email
-        message["Subject"]="Your published requirement — "+service
+        message["Subject"]="Enquiry about "+service
         message["Reply-To"]=sender
         message.set_content(
-            "Hello,\n\n"
-            "I found your publicly stated requirement here: "+(lead.get("evidence_url") or website)+"\n\n"
-            "The requirement I found was: "+evidence[:700]+"\n\n"
-            "I'm Siva Satya Prasad from GenieDevs. I may be able to help with "+service.lower()+". "
-            "If the requirement is still active, you can reply with the scope and expected timeline; "
-            "I will then provide a clearly scoped option for your review. This message is an initial inquiry, not a quote or commitment.\n\n"
-            "If this is no longer relevant or you prefer no further contact, reply with “No further contact” and I will suppress further outreach.\n\n"
-            "Portfolio: "+PORTFOLIO_URL+"\n\n"
-            "Regards,\nSiva Satya Prasad\nGenieDevs\n"
+            "Hello,\\n\\n"
+            "My name is Siva Satya Prasad, and I represent GenieDevs. "
+            "I work on practical digital solutions, including websites, web applications and automation.\\n\\n"
+            "I am reaching out to ask whether your team is currently considering support for "
+            +service.lower()+". If this is relevant, I would be glad to understand the scope and timeline "
+            "before suggesting an approach.\\n\\n"
+            "You can review my work here: "+PORTFOLIO_URL+"\\n\\n"
+            "If this enquiry is not relevant, please let me know and I will not contact you again.\\n\\n"
+            "Thank you for your time.\\n\\n"
+            "Regards,\\nSiva Satya Prasad\\nGenieDevs"
         )
         action_id=str(uuid.uuid4())
         # Persist a pending action before sending. If logging fails, do not send.
