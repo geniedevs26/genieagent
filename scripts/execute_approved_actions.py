@@ -144,9 +144,9 @@ def main():
             blocked+=1; continue
         if stage=="project_start" and order.get("order_status")!="awaiting_project_start_approval":
             blocked+=1; continue
-        if stage=="milestone_delivery" and order.get("order_status")!="in_progress":
+        if stage=="milestone_delivery" and order.get("order_status")!="awaiting_milestone_approval":
             blocked+=1; continue
-        if stage=="final_delivery" and order.get("order_status")!="in_progress":
+        if stage=="final_delivery" and order.get("order_status")!="awaiting_final_delivery_approval":
             blocked+=1; continue
         if stage=="order_close" and order.get("order_status")!="awaiting_order_close_approval":
             blocked+=1; continue
