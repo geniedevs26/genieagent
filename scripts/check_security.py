@@ -45,6 +45,8 @@ for item in [
     "x.externalCostsVerified==='Yes'",
     "x.paymentTerms",
     "x.costEvidenceUrl",
+    "cost=n('actualExpense')+n('toolCost')",
+    "actual_expenses:Number(x.actualExpense)||0",
     "async function loadAudit()",
     "automationHistoryPanel",
     "financialQueuePanel",
