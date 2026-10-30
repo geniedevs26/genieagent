@@ -106,7 +106,7 @@ for item in [
     "OPTOUT_RE","PROPOSAL_REQUEST_RE","ORDER_ACCEPT_RE","AGREEMENT_ACCEPT_RE",
     "FINAL_ACCEPT_RE","create_or_advance_order","create_stage_request",
     "financial_proposal_send","agreement_send","project_start","order_close",
-    'mail.search(None,"SINCE",since)',"search_senders=set(sent_by_recipient)|{\"mailer-daemon\",\"postmaster\"}","recent[-100:]","stable_id",
+    'mail.search(None,"SINCE",since,"FROM",',"search_senders=set(sent_by_recipient)|{\"mailer-daemon\",\"postmaster\"}","recent[-100:]","stable_id",
     '"client_accepted_at":None',
     '"action_type":"in.(email,follow_up,proposal,financial_proposal_send,agreement,agreement_send,milestone_delivery,final_delivery,inbound_reply)"',
 ]:
