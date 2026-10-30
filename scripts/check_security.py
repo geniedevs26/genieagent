@@ -111,7 +111,7 @@ for item in [
 
 for item in [
     '"status":"eq.approved"','"status":"executing"','"status":"executed"',
-    "finance_ready(finance)","send_stage_email","automatic retry is disabled",
+    "finance_ready(finance,lead)","send_stage_email","automatic retry is disabled",
     "financial_proposal_send","agreement_send","milestone_delivery","final_delivery",
 ]:
     if item not in executor:
