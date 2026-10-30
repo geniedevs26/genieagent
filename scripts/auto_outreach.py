@@ -12,8 +12,8 @@ from email.message import EmailMessage
 
 SUPABASE_URL = "https://irpqaoooosrjhviwdddo.supabase.co"
 DAILY_LIMIT = 5
-FOLLOWUP_AFTER_DAYS = 5
-MAX_FOLLOWUPS = 1
+FOLLOWUP_DAYS = (5, 12, 21)
+MAX_FOLLOWUPS = len(FOLLOWUP_DAYS)
 PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"
 NON_BUYER_PUBLISHERS = {"hubspot.com"}
 
@@ -247,12 +247,12 @@ def main():
             prior=followups_by_lead.get(lid,[])
             payload=lead.get("payload") if isinstance(lead.get("payload"),dict) else {}
             email=(lead.get("contact_email") or payload.get("email") or "").strip()
-            if not initial or prior or lid in reply_leads or lid in bounced_leads:
+            if not initial or len(prior)>=MAX_FOLLOWUPS or lid in reply_leads or lid in bounced_leads:
                 continue
             if initial.get("approval_status")!="pending_verification":
                 continue
             sent_at=parse_dt(initial.get("executed_at") or initial.get("created_at"))
-            if not sent_at or now-sent_at<timedelta(days=FOLLOWUP_AFTER_DAYS):
+            if not sent_at or now-sent_at<timedelta(days=FOLLOWUP_DAYS[len(prior)]):
                 continue
             if (not email or email.lower() in suppressed or payload.get("contactVerified")!="Yes"
                     or payload.get("clientNeedConfirmed")!="Yes" or not payload.get("needEvidenceUrl")
