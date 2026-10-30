@@ -124,11 +124,11 @@ def main():
                 server.send_message(message)
             now=datetime.now(timezone.utc).isoformat()
             api("/rest/v1/outreach_actions?id=eq."+action_id,key,"PATCH",{
-                "approval_status":"sent","executed_at":now,
-                "result_notes":"SMTP accepted the initial inquiry. This records provider acceptance, not a guarantee of inbox delivery."
+                "approval_status":"pending_verification","executed_at":now,
+                "result_notes":"SMTP accepted the message for processing, but final recipient delivery is NOT verified. Excluded from contacted/email totals until a delivery-status provider confirms delivery. A later bounce remains possible."
             },"return=minimal")
-            event(key,owner_id,"automated_initial_email","sent",
-                  "Initial inquiry accepted by SMTP provider",
+            event(key,owner_id,"automated_initial_email","pending_verification",
+                  "SMTP accepted message; recipient delivery is not verified",
                   {"lead_id":lead["id"],"recipient":email,"website":website,"subject":message["Subject"],"action_id":action_id})
             already.add(lead["id"]);sent+=1
         except Exception as exc:
@@ -142,7 +142,7 @@ def main():
                       "Automatic initial inquiry failed; no success claimed",
                       {"lead_id":lead["id"],"recipient":email,"error":str(exc)[:400],"action_id":action_id})
 
-    msg=f"Automatic outreach finished: {sent} sent, {skipped} skipped, {failures} failed. Daily limit: {daily_limit}. Each lead receives at most one automated initial email; no follow-ups, quotes or payment requests are sent."
+    msg=f"Automatic outreach finished: {sent} SMTP-accepted but delivery-unverified, {skipped} skipped, {failures} failed. Unverified attempts are excluded from contacted/email totals. Daily limit: {daily_limit}. Each lead receives at most one automated initial email; no follow-ups, quotes or payment requests are sent."
     print(msg)
     if summary_path:
         with open(summary_path,"a",encoding="utf-8") as f:f.write("\\n## Automatic outreach\\n\\n"+msg+"\\n")
