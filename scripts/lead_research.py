@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""High-precision discovery of public business requirement candidates.
+"""High-precision public-web discovery and automatic qualification of direct-business requirements.
 
-Refresh note: daily automation is intentionally allowed to return zero results rather than low-confidence leads.
-
-This script NEVER confirms buyer intent. Search evidence remains a candidate until
-the client explicitly confirms the requirement and contact details are verified.
+A page qualifies only when the business's own page contains first-person project intent,
+a nearby paid/contract signal, no unpaid/job-listing indicators, and a public contact email.
+This confirms a published business requirement and contact route, not email delivery,
+client acceptance, budget agreement, or an order.
 """
 import csv, html, json, os, re, time
 import urllib.parse
