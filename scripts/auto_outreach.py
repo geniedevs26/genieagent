@@ -46,6 +46,7 @@ def main():
     smtp_user=os.getenv("SMTP_USERNAME","").strip()
     smtp_pass=os.getenv("SMTP_PASSWORD","").strip()
     sender=os.getenv("GENIE_SENDER_EMAIL","").strip()
+    suppressed_emails={x.strip().lower() for x in os.getenv("SUPPRESSED_EMAILS","").split(",") if x.strip()}
     summary_path=os.getenv("GITHUB_STEP_SUMMARY")
     if not all([key,owner_email,enabled,smtp_host,smtp_user,smtp_pass,sender]):
         msg="Automatic outreach skipped safely. Configure owner/Supabase and SMTP secrets, then set AUTO_OUTREACH_ENABLED=true."
@@ -83,6 +84,10 @@ def main():
         email=(lead.get("contact_email") or payload.get("email") or "").strip()
         website=lead.get("website_url") or payload.get("website") or ""
         evidence=(lead.get("evidence_summary") or payload.get("evidence") or "").strip()
+        if email.lower() in suppressed_emails:
+            skipped+=1
+            print("Skipped suppressed recipient: "+email)
+            continue
         if lead.get("id") in already or not email or not website or not evidence:
             skipped+=1; continue
         if payload.get("clientNeedConfirmed")!="Yes" or payload.get("contactVerified")!="Yes" or not payload.get("needEvidenceUrl"):
