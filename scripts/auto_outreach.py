@@ -163,7 +163,8 @@ def main():
             body=(
                 "Hello,\n\n"
                 "I am following up once on my earlier enquiry about "+service.lower()+" at "+company+". "
-                "I noticed the requirement on your public page and wanted to check whether it is still active.\n\n"
+                "I noticed the requirement on your public page and wanted to check whether it is still active. "
+                "Reference: "+(lead.get("evidence_url") or lead.get("website_url") or "")+"\n\n"
                 "If it is, I would be glad to understand the scope and timeline before suggesting a suitable approach. "
                 "You can review my work here: "+PORTFOLIO_URL+"\n\n"
                 "If the requirement has been filled or this is not relevant, no reply is needed and I will close the loop. "
@@ -196,6 +197,7 @@ def main():
             "Hello,\n\n"
             "My name is Siva Satya Prasad, and I represent GenieDevs. "
             "I noticed your public business page mentions a requirement for "+service.lower()+". "
+            "Reference: "+(lead.get("evidence_url") or website)+"\n"
             "If that requirement is still active, I would be glad to understand the scope and timeline "
             "and discuss a practical approach.\n\n"
             "My work includes websites, web applications, AI-assisted tools and workflow automation. "
