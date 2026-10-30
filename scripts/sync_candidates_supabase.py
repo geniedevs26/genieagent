@@ -97,6 +97,8 @@ def main():
         
         and (item.get("needEvidenceUrl") or "").startswith("http")
         and (item.get("evidence") or "").strip()
+        and item.get("paidSignal") == "Yes"
+        and bool(item.get("email") or item.get("contact_url"))
     ]
     run_id = str(uuid.uuid4())
     started = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
