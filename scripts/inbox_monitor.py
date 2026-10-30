@@ -128,7 +128,7 @@ def main():
             subject = decoded(msg.get("Subject", ""))
             text = body_text(msg)
             combined = subject + "\n" + text
-            is_bounce = bool(BOUNCE_RE.search(combined) or sender.startswith(("mailer-daemon@", "postmaster@")))
+            is_bounce = bool(BOUNCE_RE.search(combined) or sender.startswith(("mailer-daemon", "postmaster")))
             recipient = ""
             if is_bounce:
                 candidates = [e.lower() for e in EMAIL_RE.findall(combined) if e.lower() != sender]
