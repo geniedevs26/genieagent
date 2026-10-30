@@ -69,6 +69,8 @@ for item in [
     '"clientNeedConfirmed":"Yes"',
     '"contactVerified":"Yes"',
     "country_for(url,page_text)",
+    "extract_public_phone(page_text,parser.links)",
+    "\"phone\":phone,\"phone_source\":phone_source",
     "if not on_page_intent:",
 ]:
     if item not in research:
