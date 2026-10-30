@@ -32,6 +32,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Run security and automation regression checks
+        run: |
+          python -m py_compile scripts/lead_research.py scripts/sync_candidates_supabase.py scripts/auto_outreach.py scripts/inbox_monitor.py scripts/check_security.py
+          python scripts/check_security.py
       - name: Discover public business candidates
         run: python scripts/lead_research.py
       - name: Sync candidates to owner's private CRM when secrets are configured
