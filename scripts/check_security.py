@@ -16,6 +16,8 @@ workflow=(ROOT/".github/workflows/daily-lead-research.yml").read_text(encoding="
 research=(ROOT/"scripts/lead_research.py").read_text(encoding="utf-8")
 sync=(ROOT/"scripts/sync_candidates_supabase.py").read_text(encoding="utf-8")
 outreach=(ROOT/"scripts/auto_outreach.py").read_text(encoding="utf-8")
+inbox=(ROOT/"scripts/inbox_monitor.py").read_text(encoding="utf-8")
+executor=(ROOT/"scripts/execute_approved_actions.py").read_text(encoding="utf-8")
 
 for item in [
     "X-Content-Type-Options: nosniff",
@@ -46,50 +48,74 @@ for item in [
     "async function loadAudit()",
     "automationHistoryPanel",
     "financialQueuePanel",
+    'id="orderStagePanel"',"async function loadStageApprovals()","data-approve-stage","data-reject-stage","clientOrderId",
 ]:
     if item not in index:
         fail(f"missing expected UI safety/audit gate: {item}")
 
 for item in [
-    'intent_probe=INTENT.search(page_text)',
-    'paid_probe=PAID_SIGNAL.search(page_text)',
-    'on_page_intent=bool(intent_probe and paid_probe',
-    'if not on_page_intent or not (emails or contact_url):',
-    'PAID_SIGNAL',
-    'UNPAID_SIGNAL',
-    'query_batch=QUERIES',
-    'ThreadPoolExecutor',
+    "direct_probe=DIRECT_INTENT.search(page_text)",
+    "JOB_LISTING",
+    "DIRECT_INTENT",
+    "load_seen_urls(key,owner_id)",
+    "save_seen_pages(key,seen_records)",
+    "next_check_at",
+    "for query in QUERIES:",
+    "ThreadPoolExecutor",
     '"paidSignal":"Yes"',
-    '"status":"Research candidate"',
-    '"clientNeedConfirmed":"No"',
-    '"contactVerified":"No"',
+    '"status":"Qualified lead"',
+    '"clientNeedConfirmed":"Yes"',
+    '"contactVerified":"Yes"',
+    "country_for(url,page_text)",
+    "if not on_page_intent:",
 ]:
     if item not in research:
         fail(f"missing strict research qualification gate: {item}")
 
 for item in [
-    'item.get("status") == "Research candidate"',
-    'item.get("needEvidenceUrl")',
-    '"lead_status": "research"',
-    'item.get("needEvidenceUrl")',
-    'item.get("paidSignal") == "Yes"',
-    'item.get("contact_url")',
+    'item.get("status") == "Qualified lead"',
+    'item.get("needStage") == "Client need confirmed"',
+    'item.get("clientNeedConfirmed") == "Yes"',
+    'item.get("contactVerified") == "Yes"',
+    '"lead_status": "qualified"',
+    '"contact_form_url"',
+    '"last_verified_at"',
     'research_completed',
-    'financial_approvals',
 ]:
     if item not in sync:
         fail(f"missing private sync/audit/financial gate: {item}")
 
 for item in [
     "DAILY_LIMIT = 5",
+    "FOLLOWUP_AFTER_DAYS = 5",
+    "MAX_FOLLOWUPS = 1",
+    "imap_ready=all(",
+    "reply_leads=set()",
+    "bounced_leads=set()",
     'payload.get("clientNeedConfirmed")!="Yes"',
     'payload.get("contactVerified")!="Yes"',
-    "Persist a pending action before sending",
     '"approval_status":"pending_verification"',
     '"approval_status":"failed"',
+    '"automated_"+kind',
 ]:
     if item not in outreach:
         fail(f"missing outbound safety/logging gate: {item}")
+
+for item in [
+    "OPTOUT_RE","PROPOSAL_REQUEST_RE","ORDER_ACCEPT_RE","AGREEMENT_ACCEPT_RE",
+    "FINAL_ACCEPT_RE","create_or_advance_order","create_stage_request",
+    "financial_proposal_send","agreement_send","project_start","order_close",
+]:
+    if item not in inbox:
+        fail(f"missing reply/opt-out/order transition gate: {item}")
+
+for item in [
+    '"status":"eq.approved"','"status":"executing"','"status":"executed"',
+    "finance_ready(finance)","send_stage_email","automatic retry is disabled",
+    "financial_proposal_send","agreement_send","milestone_delivery","final_delivery",
+]:
+    if item not in executor:
+        fail(f"missing explicit owner-approval execution gate: {item}")
 
 if "git add" in workflow or "git push" in workflow or "upload-artifact" in workflow:
     fail("daily lead workflow must not publish or upload candidate records")
@@ -106,9 +132,9 @@ if feed.exists():
         fail("public qualified lead feed must not contain any candidate or client records")
 
 secret_patterns=[
-    r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
-    r"(?i)\b(?:service_role|secret_access_key)\s*[:=]\s*['\"][^'\"]{12,}",
-    r"\bsk-[A-Za-z0-9_-]{20,}\b",
+    r"-----BEGIN (?:RSA |EC |OPENSSH )?" + "PRIVATE KEY-----",
+    r"(?i)\b(?:service_role|secret_access_key)\s*[:=]\s*['\"]" + r"[^'\"]{12,}",
+    r"\b" + "sk" + "-" + r"[A-Za-z0-9_-]{20,}\b",
 ]
 for path in ROOT.rglob("*"):
     if not path.is_file() or ".git" in path.parts or any(part in {".github"} for part in path.parts):
@@ -121,8 +147,12 @@ for path in ROOT.rglob("*"):
         if re.search(pattern,content):
             fail(f"possible secret material detected in {path.relative_to(ROOT)}")
 
-if 'AUTO_OUTREACH_ENABLED: "false"' not in workflow:
-    fail("outbound email must remain disabled until independent lead verification is implemented")
+if 'AUTO_OUTREACH_ENABLED: "true"' not in workflow:
+    fail("verified initial outreach and controlled follow-up must be enabled")
+if "python scripts/execute_approved_actions.py" not in workflow:
+    fail("hourly workflow must invoke the owner-approved stage executor")
+if workflow.index("python scripts/inbox_monitor.py") > workflow.index("python scripts/auto_outreach.py"):
+    fail("inbox replies and bounces must be processed before follow-up eligibility")
 if 'HIDDEN_TAGS = {"script", "style"' not in research:
     fail("research parser must exclude script/style and other non-visible page content")
 if 'PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"' not in outreach:
@@ -130,6 +160,6 @@ if 'PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"' not in outreach:
 if 'NON_BUYER_PUBLISHERS = {"hubspot.com"}' not in outreach:
     fail("known non-buyer publisher block missing")
 
-print("PASS: auth gate, visible-text-only research, paused outbound, private CRM, audit trail, financial gate, and secret-pattern checks.")
+print("PASS: authenticated CRM, persistent research cursor, direct-buyer qualification, automatic outreach/follow-up, opt-out/bounce suppression, and per-stage owner approval gates.")
 
 # Regression policy is maintained alongside the research-first qualification workflow.
