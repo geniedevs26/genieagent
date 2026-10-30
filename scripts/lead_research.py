@@ -117,7 +117,8 @@ INTENT = re.compile(
 )
 PAID_SIGNAL = re.compile(r"\b(?:paid project|paid work|budget(?:ed)?|project budget|hiring|looking to hire|hire|contract(?:or)?|commission|compensation|rate|quote|request for quote|payment|pay for|fee|funded)\b", re.I)
 UNPAID_SIGNAL = re.compile(r"\b(?:unpaid|volunteer|equity only|no budget|not paid|free work)\b", re.I)
-LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download|what is an? |how to create|how to build|step-by-step|ultimate guide|rfp template|proposal template|blog post|case study", re.I)
+LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download|what is an? |how to create|how to build|step-by-step|ultimate guide|rfp template|proposal template|blog post|case study|\bblog\b|\barticle\b|\bresources?\b|\bwhitepaper\b|\bwebinar\b|\bpress release\b|\bportfolio\b|\bjob description\b|\bcareers?\b|\bhow it works\b", re.I)
+NON_BUYER_PATH = re.compile(r"/(?:blog|articles?|resources?|learn|academy|guides?|templates?|examples?|news|press|careers?|jobs?)(?:/|$)", re.I)
 
 def get(url, timeout=5, attempts=2):
     # Search engines are tried independently; search calls can disable retries
@@ -233,8 +234,9 @@ def main():
             if checked >= max_checks_per_run or added >= 50: break
             domain=host(url)
             combined=re.sub(r"\s+"," ",title+" "+snippet)
+            path=urlparse(url).path or "/"
             if not url.startswith("http") or "." not in domain or is_skipped(domain): continue
-            if LOW_QUALITY.search(combined): continue
+            if NON_BUYER_PATH.search(path) or LOW_QUALITY.search(combined): continue
             key=url.split("#")[0].rstrip("/")
             if key in seen_pages: continue
             seen_pages.add(key)
@@ -251,7 +253,9 @@ def main():
             # Search snippets alone never qualify a lead.
             intent_probe=INTENT.search(page_text)
             paid_probe=PAID_SIGNAL.search(page_text)
-            on_page_intent=bool(intent_probe and paid_probe and abs(intent_probe.start()-paid_probe.start())<=2500) and not UNPAID_SIGNAL.search(page_text[:12000]) and not LOW_QUALITY.search(page_text[:12000])
+            # Intent and payment language must be tightly connected on the same page.
+            # Broad proximity across a long article is not sufficient evidence.
+            on_page_intent=bool(intent_probe and paid_probe and abs(intent_probe.start()-paid_probe.start())<=600) and not UNPAID_SIGNAL.search(page_text[:12000]) and not LOW_QUALITY.search(page_text[:12000])
             contact_url=""
             emails=set(EMAIL_RE.findall(page_text))
             for href,label in parser.links:
