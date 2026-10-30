@@ -49,7 +49,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
         run: python scripts/sync_candidates_supabase.py
-      - name: Monitor inbox replies and bounces before any follow-up
+      - name: Monitor replies, bounces and guarded AI email responses before any follow-up
         timeout-minutes: 10
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
