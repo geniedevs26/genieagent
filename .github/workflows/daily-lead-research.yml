@@ -60,7 +60,7 @@ jobs:
           IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
           IMAP_FOLDER: ${{ secrets.IMAP_FOLDER }}
         run: python scripts/inbox_monitor.py
-      - name: Send verified initial inquiries and one reply-aware follow-up
+      - name: Send verified initial inquiries and up to three reply-aware follow-ups
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
