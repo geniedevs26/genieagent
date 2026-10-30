@@ -165,6 +165,9 @@ def main():
                     ignored += 1
                     continue
                 now = datetime.now(timezone.utc).isoformat()
+                api("/rest/v1/outreach_actions?id=eq." + original["id"], key, "PATCH", {
+                    "approval_status": "delivery_verified", "result_notes": "A genuine reply from the recipient was received. This confirms the original email reached a responding mailbox; it is counted as delivery-verified."
+                }, "return=minimal")
                 lead = leads_by_id.get(original.get("lead_id"))
                 if lead:
                     payload = lead.get("payload") if isinstance(lead.get("payload"), dict) else {}
