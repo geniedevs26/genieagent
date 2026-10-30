@@ -185,7 +185,7 @@ def main():
             "service_need": item.get("service") or None,
             "evidence_summary": item.get("evidence") or None,
             "evidence_url": item.get("source") or item.get("website") or None,
-            "lead_status": "new",
+            "lead_status": "research",
             "payload": payload,
             "updated_at": now,
         })
