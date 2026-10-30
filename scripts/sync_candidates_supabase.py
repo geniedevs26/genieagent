@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Sync unverified public-web research candidates to the owner's private Supabase CRM.
+"""Sync automatically verified direct-business project requirements to the owner's private Supabase CRM.
 
 Required GitHub Actions secrets:
   SUPABASE_SERVICE_ROLE_KEY
   GENIE_OWNER_EMAIL
 
-No lead details are committed to this public repository. This script only creates
-new research-stage records; it never overwrites existing CRM leads or qualifies them.
+No lead details are committed to this public repository. Only direct first-person requirements with a paid signal, same-site public email and source evidence are synced as qualified leads.
 """
 import csv
 import json
@@ -109,7 +108,7 @@ def main():
         method="POST",
         payload={"id": run_id, "owner_id": owner_id, "workflow_name": "daily_confirmed_lead_research",
                  "run_status": "running", "started_at": started,
-                 "summary": "Daily research started; on-page requirement candidates are collected for human verification."},
+                 "summary": "Hourly research started; unseen pages are checked and only verified direct-business requirements are qualified."},
         prefer="return=minimal",
     )
     request_json(
@@ -117,7 +116,7 @@ def main():
         key, method="POST",
         payload={"owner_id": owner_id, "event_type": "research_started", "entity_table": "agent_runs",
                  "entity_id": run_id, "event_status": "running",
-                 "summary": "Daily confirmed-lead research started",
+                 "summary": "Hourly verified direct-business lead research started",
                  "details": {"workflow": "daily_confirmed_lead_research", "source_rows": len(all_rows)}},
         prefer="return=minimal",
     )
@@ -179,7 +178,7 @@ def main():
             "dealCurrency": "USD",
             "created": now[:10],
             "updated": now[:10],
-            "activity": [{"date": now[:10], "text": "Added by daily public-web research. Candidate is unverified; verify before outreach."}],
+            "activity": [{"date": now[:10], "text": "Added by automatic public-web verification. Requirement and public email were found on the business website; SMTP delivery and client acceptance remain unverified."}],
         }
         rows.append({
             "id": lead_id,
