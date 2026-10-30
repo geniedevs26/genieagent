@@ -125,7 +125,7 @@ UNPAID_SIGNAL = re.compile(r"\b(?:unpaid|volunteer|equity only|no budget|not pai
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download|what is an? |how to create|how to build|step-by-step|ultimate guide|rfp template|proposal template|blog post|case study|\bblog\b|\barticle\b|\bresources?\b|\bwhitepaper\b|\bwebinar\b|\bpress release\b|\bportfolio\b|\bjob description\b|\bcareers?\b|\bhow it works\b", re.I)
 NON_BUYER_PATH = re.compile(r"/(?:blog|articles?|resources?|learn|academy|guides?|templates?|examples?|news|press|careers?|jobs?|vacancies|positions)(?:/|$)", re.I)
 JOB_LISTING = re.compile(r"\b(?:apply now|submit (?:your )?resume|job description|employment type|salary range|career opportunity|job opening|vacancy|job board|job listings|remote job|position available|apply for this job|full[- ]time position|part[- ]time position)\b", re.I)
-DIRECT_INTENT = re.compile(r"\b(?:we(?:'re| are)|our team|our company|our business|i(?:'m| am)|my company|my business)\b.{0,260}\b(?:looking for|need|seeking|hiring|want to hire|request(?:ing)? a quote)\b", re.I | re.S)
+DIRECT_INTENT = re.compile(r"\b(?:we(?:'re| are)?|our team|our company|our business|i(?:'m| am)|my company|my business)\b.{0,260}\b(?:looking for|need|seeking|hiring|want to hire|request(?:ing)? a quote)\b", re.I | re.S)
 SUPABASE_URL = "https://irpqaoooosrjhviwdddo.supabase.co"
 
 def get(url, timeout=5, attempts=2):
@@ -281,9 +281,10 @@ def main():
         discovered.extend(results)
     def region_rank(item):
         d=host(item[1])
-        if d.endswith((".com.au",".au",".co.uk",".uk",".us")): return 0
-        if d.endswith(".ca"): return 1
-        if d.endswith(".in"): return 3
+        context=(item[0]+" "+item[2]).lower()
+        if d.endswith((".com.au",".au",".co.uk",".uk",".us")) or any(x in context for x in ("united states","usa","u.s.","united kingdom","australia","sydney","london","new york","california","texas")): return 0
+        if d.endswith(".ca") or "canada" in context: return 1
+        if d.endswith(".in") or "india" in context: return 3
         return 2
     discovered.sort(key=region_rank)
     checked_urls=set()
