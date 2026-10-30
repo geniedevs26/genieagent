@@ -123,27 +123,44 @@ def main():
 
     query = urllib.parse.urlencode({
         "owner_id": "eq." + owner_id,
-        "select": "id,website_url,payload",
+        "select": "id,website_url,payload,lead_status",
         "limit": "1000",
     })
     existing = request_json(f"{SUPABASE_URL}/rest/v1/leads?{query}", key) or []
-    known_urls = set()
+    known_by_url = {}
     for row in existing:
         website = norm_url(row.get("website_url"))
         payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
         website = website or norm_url(payload.get("website"))
         if website:
-            known_urls.add(website)
-
+            known_by_url[website] = row
+    action_query=urllib.parse.urlencode({"owner_id":"eq."+owner_id,"select":"lead_id,action_type","limit":"5000"})
+    prior_actions=request_json(f"{SUPABASE_URL}/rest/v1/outreach_actions?{action_query}",key) or []
+    contacted_ids={a.get("lead_id") for a in prior_actions if a.get("lead_id")}
     now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
     rows = []
+    requalified_updates = []
     for item in candidates:
         website = norm_url(item.get("website"))
         company = (item.get("company") or "").strip()
-        if not website or not company or website in known_urls:
+        if not website or not company:
             continue
-        lead_id = str(uuid.uuid5(uuid.NAMESPACE_URL, owner_id + "|" + website))
-        payload = {
+        prior=known_by_url.get(website)
+        if prior:
+            prior_payload=prior.get("payload") if isinstance(prior.get("payload"),dict) else {}
+            if (prior.get("lead_status") not in ("research","needs_review")
+                    or prior.get("id") in contacted_ids
+                    or prior_payload.get("doNotContact")
+                    or prior_payload.get("status") in ("Opted out","Not interested")):
+                continue
+            lead_id=prior["id"]
+            payload=dict(prior_payload)
+            prior_activity=payload.get("activity") if isinstance(payload.get("activity"),list) else []
+        else:
+            lead_id = str(uuid.uuid5(uuid.NAMESPACE_URL, owner_id + "|" + website))
+            payload = {}
+            prior_activity=[]
+        payload.update({
             "id": lead_id,
             "company": company,
             "country": item.get("country") or "Other international",
@@ -178,9 +195,9 @@ def main():
             "dealCurrency": "USD",
             "created": now[:10],
             "updated": now[:10],
-            "activity": [{"date": now[:10], "text": "Added by automatic public-web verification. Requirement and public email were found on the business website; SMTP delivery and client acceptance remain unverified."}],
-        }
-        rows.append({
+            "activity": prior_activity + [{"date": now[:10], "text": "Automatically re-verified as a direct paid business requirement with a same-site public email. SMTP delivery and client acceptance remain unverified."}],
+        })
+        lead_row={
             "id": lead_id,
             "owner_id": owner_id,
             "company_name": company,
@@ -196,8 +213,12 @@ def main():
             "lead_status": "qualified",
             "payload": payload,
             "updated_at": now,
-        })
-        known_urls.add(website)
+        }
+        if prior:
+            requalified_updates.append(lead_row)
+        else:
+            rows.append(lead_row)
+            known_by_url[website] = {"id":lead_id,"lead_status":"qualified","payload":payload,"website_url":website}
 
     if rows:
         request_json(
@@ -208,13 +229,17 @@ def main():
             prefer="return=minimal",
         )
 
+    for update in requalified_updates:
+        request_json(f"{SUPABASE_URL}/rest/v1/leads?id=eq.{update['id']}&owner_id=eq.{owner_id}",
+                     key, method="PATCH", payload=update, prefer="return=minimal")
+
     finished = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
-    message = f"Daily run complete: {len(all_rows)} source rows reviewed; {len(candidates)} contained on-page requirement evidence; {len(rows)} new research candidates inserted; {len(candidates) - len(rows)} skipped as duplicates."
+    message = f"Hourly run complete: {len(all_rows)} source rows reviewed; {len(candidates)} contained on-page requirement evidence; {len(rows)} new qualified leads inserted; {len(requalified_updates)} existing research records promoted after re-verification; {len(candidates) - len(rows) - len(requalified_updates)} skipped as duplicates or protected records."
     request_json(
         f"{SUPABASE_URL}/rest/v1/agent_runs?id=eq.{run_id}",
         key, method="PATCH",
         payload={"run_status": "completed", "finished_at": finished,
-                 "candidates_found": len(all_rows), "qualified_count": len(rows), "summary": message},
+                 "candidates_found": len(all_rows), "qualified_count": len(rows) + len(requalified_updates), "summary": message},
         prefer="return=minimal",
     )
     request_json(
@@ -223,7 +248,7 @@ def main():
         payload={"owner_id": owner_id, "event_type": "research_completed", "entity_table": "agent_runs",
                  "entity_id": run_id, "event_status": "completed", "summary": message,
                  "details": {"source_rows": len(all_rows), "passed_confirmation_gate": len(candidates),
-                             "new_leads_inserted": len(rows), "duplicates_skipped": len(candidates) - len(rows)}},
+                             "new_leads_inserted": len(rows), "existing_leads_requalified": len(requalified_updates), "duplicates_skipped": len(candidates) - len(rows) - len(requalified_updates)}},
         prefer="return=minimal",
     )
     print(message)
