@@ -241,7 +241,7 @@ def ai_reply_text(account_id, token, subject, body, lead):
         if not match: return ""
         answer=str(json.loads(match.group(0)).get("reply") or "").strip()
         if not answer or len(answer)>900 or AUTO_REPLY_BLOCK_RE.search(answer): return ""
-        if re.search(r"\b(?:guarantee|promise|certified|available immediately|will finish by|my clients include)\\b",answer,re.I): return ""
+        if re.search(r"\b(?:guarantee|promise|certified|available immediately|will finish by|my clients include)\b",answer,re.I): return ""
         return re.sub(r"\s+"," ",answer)
     except Exception as exc:
         print("AI reply held safely: "+str(exc)[:180])
@@ -319,6 +319,7 @@ def main():
     leads_by_id={row["id"]:row for row in leads}
     mail=imaplib.IMAP4_SSL(host,port,timeout=20)
     processed=replies=bounces=ignored=orders_created=approvals_created=optouts=ai_replies=ai_held=0
+    ai_reply_limit=3
     try:
         mail.login(username,password)
         status,_=mail.select(folder)
@@ -416,7 +417,7 @@ def main():
                         sender_email=os.getenv("GENIE_SENDER_EMAIL","").strip()
                         try: smtp_port=int(os.getenv("SMTP_PORT") or "587")
                         except ValueError: smtp_port=587
-                        answer=ai_reply_text(account_id,token,subject,text,lead)
+                        answer=ai_reply_text(account_id,token,subject,text,lead) if ai_replies<ai_reply_limit else ""
                         if answer and all([smtp_host,smtp_user,smtp_pass,sender_email]):
                             if send_ai_reply(key,owner_id,lead,sender,subject,answer,message_id,
                                              smtp_host,smtp_port,smtp_user,smtp_pass,sender_email):
