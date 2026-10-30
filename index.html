@@ -44,7 +44,7 @@ body:not(.authenticated)>.quicknav{display:none!important}
 body.authenticated main.wrap > section,body.authenticated main.wrap > .layout{display:none!important}
 body.authenticated main.wrap > #automationCard{display:grid!important}
 body.authenticated.view-dashboard main.wrap > .stats{display:grid!important}
-body.authenticated.view-leads main.wrap > .layout{display:grid!important}
+body.authenticated.view-leads main.wrap > .layout{display:grid!important;grid-template-columns:minmax(0,1fr)!important}body.authenticated.view-leads main.wrap > .layout>div:first-child{display:none!important}
 body.authenticated.view-orders main.wrap > #financialQueuePanel{display:block!important}
 body.authenticated.view-income main.wrap > #financeLedgerPanel{display:block!important}
 body.authenticated.view-activity main.wrap > #automationHistoryPanel{display:block!important}
@@ -64,7 +64,7 @@ body.authenticated main.wrap>.footer{display:none!important}
 
 <section id="authPanel" aria-labelledby="authTitle"><h1 id="authTitle">GenieAgent <span style="color:#70e1c1">Secure Login</span></h1><p class="sub">Owner-only access. Accounts must be created by the project owner.</p><label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="username" required placeholder="you@example.com"><label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="At least 8 characters"><div class="auth-actions"><button id="signInBtn" class="primary">Sign in</button></div><p id="authMessage" role="status">Account creation is restricted. Sign in with the owner account.</p></section>
 
-<header><div class="actions" style="margin:0"><span id="accountLabel" class="muted"></span><button id="signOutBtn">Sign out</button></div><div><h1>GenieDevs <span>Client Desk</span></h1><p class="sub">One clear place to manage researched leads, client orders and activity</p></div><div class="actions" style="margin:0"><button id="autoLoadBtn" class="primary">Daily Automation ↗</button><button id="exportBtn">Export CSV backup</button><input id="csvFile" type="file" accept=".csv,text/csv" class="hide"></div></header>
+<header><div class="actions" style="margin:0"><span id="accountLabel" class="muted"></span><button id="signOutBtn">Sign out</button></div><div><h1>GenieDevs <span>Client Desk</span></h1><p class="sub">One clear place to manage researched leads, client orders and activity</p></div><div class="actions" style="margin:0"><button id="autoLoadBtn" class="primary">Automation runs ↗</button><button id="exportBtn">Export CSV backup</button><input id="csvFile" type="file" accept=".csv,text/csv" class="hide"></div></header>
 <nav class="quicknav" aria-label="Main navigation"><a href="#automationCard" data-view="dashboard">Dashboard</a><a href="#leadRowsPanel" data-view="leads">Leads</a><a href="#financialQueuePanel" data-view="orders">Orders & approvals</a><a href="#automationHistoryPanel" data-view="activity">Activity records</a><a href="#financeLedgerPanel" data-view="income">Income / expenses</a></nav>
 <main class="wrap">
 <div class="notice"><strong>How to use:</strong> Dashboard = automation status · Leads = research results · Orders = approvals · Activity = email/call/client records. Income / expenses is a separate ledger. Only genuine, evidence-backed prospects are saved; a lead is not an order until the client confirms.</div>
