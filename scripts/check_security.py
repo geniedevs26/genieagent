@@ -85,7 +85,7 @@ for item in [
     'payload.get("clientNeedConfirmed")!="Yes"',
     'payload.get("contactVerified")!="Yes"',
     "Persist a pending action before sending",
-    '"approval_status":"sent"',
+    '"approval_status":"pending_verification"',
     '"approval_status":"failed"',
 ]:
     if item not in outreach:
