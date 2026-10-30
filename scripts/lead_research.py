@@ -7,6 +7,7 @@ This confirms a published business requirement and contact route, not email deli
 client acceptance, budget agreement, or an order.
 """
 import csv, html, json, os, re, time
+from urllib.error import HTTPError
 import urllib.parse
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
@@ -222,9 +223,13 @@ def api(path, key, method="GET", payload=None, prefer=None):
         headers["Content-Type"]="application/json"
     if prefer: headers["Prefer"]=prefer
     req=Request(SUPABASE_URL+path,data=data,headers=headers,method=method)
-    with urlopen(req,timeout=25) as response:
-        raw=response.read().decode("utf-8","replace")
-        return json.loads(raw) if raw.strip() else None
+    try:
+        with urlopen(req,timeout=25) as response:
+            raw=response.read().decode("utf-8","replace")
+            return json.loads(raw) if raw.strip() else None
+    except HTTPError as exc:
+        detail=exc.read().decode("utf-8","replace")[:1200]
+        raise RuntimeError(f"Supabase API {method} {path.split('?')[0]} failed: HTTP {exc.code}: {detail}") from exc
 
 def owner_context():
     key=os.getenv("SUPABASE_SERVICE_ROLE_KEY","").strip()
@@ -243,8 +248,11 @@ def load_seen_urls(key, owner_id):
 
 def save_seen_pages(key, records):
     if not key or not records: return
-    for start in range(0,len(records),100):
-        api("/rest/v1/research_pages?on_conflict=owner_id,url",key,"POST",records[start:start+100],"resolution=merge-duplicates,return=minimal")
+    clean=[]
+    for row in records:
+        clean.append({k:v for k,v in row.items() if v is not None})
+    for start in range(0,len(clean),50):
+        api("/rest/v1/research_pages?on_conflict=owner_id,url",key,"POST",clean[start:start+50],"resolution=merge-duplicates,return=minimal")
 
 def country_for(url, text):
     d=host(url)
@@ -347,6 +355,7 @@ def main():
             break
         emails={e.lower().strip(".,;:") for e in emails if EMAIL_RE.fullmatch(e.lower().strip(".,;:")) and not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com","noreply","no-reply"])}
         email=sorted(emails)[0] if emails else ""
+        evidence_excerpt=""
         if not on_page_intent:
             outcome="no_explicit_paid_business_request"
             next_check=now+timedelta(days=30)
