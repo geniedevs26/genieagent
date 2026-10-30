@@ -256,14 +256,18 @@ def main():
         mail.login(username,password)
         status,_=mail.select(folder)
         if status!="OK": raise RuntimeError("Could not open IMAP folder "+folder)
-        # Search recent mail regardless of read/unread state. The owner may read
-        # messages on a phone or desktop before this scheduled worker runs.
+        # Search by the exact recipient addresses we have contacted, plus standard
+        # bounce senders. This includes messages already read by the owner without
+        # scanning the entire mailbox or changing its read/unread state.
         since=(datetime.now(timezone.utc)-timedelta(days=60)).strftime("%d-%b-%Y")
-        status,data=mail.search(None,"SINCE",since)
-        if status!="OK": raise RuntimeError("Could not search recent mailbox messages")
-        recent=(data[0].split() if data and data[0] else [])
-        # Latest 200 only; Message-ID records make processing idempotent across runs.
-        for msg_num in recent[-200:]:
+        search_senders=set(sent_by_recipient)|{"mailer-daemon","postmaster"}
+        recent_ids=set()
+        for address in search_senders:
+            status,data=mail.search(None,"SINCE",since,"FROM",'"'+address+'"')
+            if status!="OK": raise RuntimeError("Could not search recent mailbox messages from "+address)
+            if data and data[0]: recent_ids.update(data[0].split())
+        recent=sorted(recent_ids,key=lambda value:int(value))
+        for msg_num in recent[-100:]:
             status,parts=mail.fetch(msg_num,"(RFC822)")
             if status!="OK" or not parts or not isinstance(parts[0],tuple): continue
             msg=email.message_from_bytes(parts[0][1])
