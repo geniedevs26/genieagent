@@ -105,9 +105,15 @@ for item in [
     "OPTOUT_RE","PROPOSAL_REQUEST_RE","ORDER_ACCEPT_RE","AGREEMENT_ACCEPT_RE",
     "FINAL_ACCEPT_RE","create_or_advance_order","create_stage_request",
     "financial_proposal_send","agreement_send","project_start","order_close",
+    'mail.search(None,"SINCE",since)',"recent[-200:]","stable_id",
+    '"client_accepted_at":None',
+    '"action_type":"in.(email,follow_up,proposal,financial_proposal_send,agreement,agreement_send,milestone_delivery,final_delivery,inbound_reply)"',
 ]:
     if item not in inbox:
         fail(f"missing reply/opt-out/order transition gate: {item}")
+
+if "mail.store(" in inbox:
+    fail("inbox monitor must not change the owner's read/unread mailbox state")
 
 for item in [
     '"status":"eq.approved"','"status":"executing"','"status":"executed"',
