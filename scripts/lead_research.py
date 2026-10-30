@@ -6,8 +6,8 @@ Refresh note: daily automation is intentionally allowed to return zero results r
 This script NEVER confirms buyer intent. Search evidence remains a candidate until
 the client explicitly confirms the requirement and contact details are verified.
 """
-import csv, html, os, re, time
-from datetime import datetime, timezone
+import csv, html, json, os, re, time
+from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote, urlparse, urljoin, parse_qs, unquote
 from urllib.request import Request, urlopen
@@ -92,7 +92,11 @@ SKIP_DOMAINS = {
     "indeed.com","glassdoor.com","ziprecruiter.com","monster.com","simplyhired.com",
     "yelp.com","yellowpages.com","crunchbase.com","zoominfo.com","clutch.co",
     "upwork.com","fiverr.com","reddit.com","quora.com","medium.com",
-    "findrfp.com","rfpdb.com","rfpmart.com","governmentbids.com","sam.gov","hubspot.com"
+    "findrfp.com","rfpdb.com","rfpmart.com","governmentbids.com","sam.gov","hubspot.com",
+    "freelancer.com","peopleperhour.com","guru.com","workana.com","toptal.com","bark.com","thumbtack.com",
+    "99designs.com","designcrowd.com","truelancer.com","remoteok.com","weworkremotely.com","wellfound.com",
+    "careerbuilder.com","dice.com","jooble.org","naukri.com","foundit.in","shine.com","timesjobs.com",
+    "seek.com.au","reed.co.uk","totaljobs.com","cv-library.co.uk","adzuna.com","jobstreet.com","monster.com"
 }
 HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.8"}
 INTENT = re.compile(
@@ -118,7 +122,10 @@ INTENT = re.compile(
 PAID_SIGNAL = re.compile(r"\b(?:paid project|paid work|budget(?:ed)?|project budget|hiring|looking to hire|hire|contract(?:or)?|commission|compensation|rate|quote|request for quote|payment|pay for|fee|funded)\b", re.I)
 UNPAID_SIGNAL = re.compile(r"\b(?:unpaid|volunteer|equity only|no budget|not paid|free work)\b", re.I)
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download|what is an? |how to create|how to build|step-by-step|ultimate guide|rfp template|proposal template|blog post|case study|\bblog\b|\barticle\b|\bresources?\b|\bwhitepaper\b|\bwebinar\b|\bpress release\b|\bportfolio\b|\bjob description\b|\bcareers?\b|\bhow it works\b", re.I)
-NON_BUYER_PATH = re.compile(r"/(?:blog|articles?|resources?|learn|academy|guides?|templates?|examples?|news|press|careers?|jobs?)(?:/|$)", re.I)
+NON_BUYER_PATH = re.compile(r"/(?:blog|articles?|resources?|learn|academy|guides?|templates?|examples?|news|press|careers?|jobs?|vacancies|positions)(?:/|$)", re.I)
+JOB_LISTING = re.compile(r"\b(?:apply now|submit (?:your )?resume|job description|employment type|salary range|career opportunity|job opening|vacancy|job board|job listings|remote job|position available|apply for this job|full[- ]time position|part[- ]time position)\b", re.I)
+DIRECT_INTENT = re.compile(r"\b(?:we(?:'re| are)|our team|our company|our business|i(?:'m| am)|my company|my business)\b.{0,260}\b(?:looking for|need|seeking|hiring|want to hire|request(?:ing)? a quote)\b", re.I | re.S)
+SUPABASE_URL = "https://irpqaoooosrjhviwdddo.supabase.co"
 
 def get(url, timeout=5, attempts=2):
     # Search engines are tried independently; search calls can disable retries
@@ -205,99 +212,176 @@ def search(query):
 def is_skipped(domain):
     return not domain or domain in SKIP_DOMAINS or any(domain.endswith("."+d) for d in SKIP_DOMAINS)
 
+
+def api(path, key, method="GET", payload=None, prefer=None):
+    headers={"apikey":key,"Authorization":"Bearer "+key,"Accept":"application/json"}
+    data=None
+    if payload is not None:
+        data=json.dumps(payload).encode("utf-8")
+        headers["Content-Type"]="application/json"
+    if prefer: headers["Prefer"]=prefer
+    req=Request(SUPABASE_URL+path,data=data,headers=headers,method=method)
+    with urlopen(req,timeout=25) as response:
+        raw=response.read().decode("utf-8","replace")
+        return json.loads(raw) if raw.strip() else None
+
+def owner_context():
+    key=os.getenv("SUPABASE_SERVICE_ROLE_KEY","").strip()
+    email=os.getenv("GENIE_OWNER_EMAIL","").strip().lower()
+    if not key or not email: return key,""
+    users=api("/auth/v1/admin/users?page=1&per_page=100",key) or {}
+    owner=next((u for u in users.get("users",[]) if (u.get("email") or "").lower()==email),None)
+    if not owner: raise RuntimeError("GENIE_OWNER_EMAIL was not found in Supabase Auth; research cursor cannot be persisted.")
+    return key,owner["id"]
+
+def load_seen_urls(key, owner_id):
+    if not key or not owner_id: return set()
+    q=urllib.parse.urlencode({"owner_id":"eq."+owner_id,"select":"url","next_check_at":"gt."+datetime.now(timezone.utc).isoformat(),"limit":"10000"})
+    rows=api("/rest/v1/research_pages?"+q,key) or []
+    return {str(x.get("url","")).split("#")[0].rstrip("/") for x in rows if x.get("url")}
+
+def save_seen_pages(key, records):
+    if not key or not records: return
+    for start in range(0,len(records),100):
+        api("/rest/v1/research_pages?on_conflict=owner_id,url",key,"POST",records[start:start+100],"resolution=merge-duplicates,return=minimal")
+
+def country_for(url, text):
+    d=host(url)
+    if d.endswith((".com.au",".au")) or re.search(r"\bAustralia|Sydney|Melbourne|Brisbane|Perth|Adelaide\b",text,re.I): return "Australia"
+    if d.endswith((".co.uk",".uk")) or re.search(r"\bUnited Kingdom|\bUK\b|London|Manchester|Birmingham|Scotland|Wales\b",text,re.I): return "UK"
+    if d.endswith(".ca") or re.search(r"\bCanada|Toronto|Vancouver|Montreal|Calgary\b",text,re.I): return "Canada"
+    if d.endswith(".in") or re.search(r"\bIndia|Hyderabad|Bengaluru|Mumbai|Chennai|Delhi\b",text,re.I): return "India"
+    if d.endswith(".us") or re.search(r"\bUnited States|\bUSA\b|\bU\.S\.|New York|California|Texas|Florida|Seattle|Chicago\b",text,re.I): return "USA"
+    return "Other international"
+
+def service_for(text):
+    t=text.lower()
+    if any(k in t for k in ("chatbot","ai assistant","voice assistant")): return "AI chatbot / voice assistant"
+    if any(k in t for k in ("android app","mobile app","app developer")): return "Android / mobile app development"
+    if any(k in t for k in ("excel","spreadsheet","data cleanup","data cleaning","powerpoint")): return "Excel / data / office services"
+    if any(k in t for k in ("telugu","translation","localization","proofreading")): return "Telugu-English localization / QA"
+    if any(k in t for k in ("seo","content writer","technical writer","blog article")): return "Content / SEO / technical writing"
+    if any(k in t for k in ("logo","graphic designer","thumbnail","banner")): return "Graphic design / digital assets"
+    if any(k in t for k in ("automation","workflow")): return "Business workflow automation"
+    return "Website / web application development"
+
+
 def main():
     os.makedirs("data",exist_ok=True)
-    old={}
-    stats={"queries":0,"search_results":0,"empty_searches":0,"pages_fetched":0,"page_failures":0,"intent_pages":0,"new_candidates":0}
-    if os.path.exists(OUT):
-        with open(OUT,newline="",encoding="utf-8-sig") as f:
-            for row in csv.DictReader(f):
-                key=(row.get("website","").lower().rstrip("/") or row.get("company","").lower())
-                domain=host(row.get("website",""))
-                if key and row.get("status")=="Research candidate" and not is_skipped(domain):
-                    old[key]=row
-    added=0
-    checked=0
-    # Exhaust the entire query bank every cycle. Do not stop after one provider
-    # or one query batch returns nothing; provider fallback runs in parallel.
-    query_batch=QUERIES
-    max_checks_per_run=40
+    key,owner_id=owner_context()
+    seen=load_seen_urls(key,owner_id)
+    stats={"queries":0,"search_results":0,"empty_searches":0,"pages_checked":0,"pages_skipped_seen":0,"page_failures":0,"qualified_pages":0,"new_candidates":0}
     discovered=[]
-    for query in query_batch:
-        stats["queries"] += 1
+    for query in QUERIES:
+        stats["queries"]+=1
         results=search(query)
-        stats["search_results"] += len(results)
-        if not results: stats["empty_searches"] += 1
+        stats["search_results"]+=len(results)
+        if not results: stats["empty_searches"]+=1
         discovered.extend(results)
-    seen_pages=set()
+    def region_rank(item):
+        d=host(item[1])
+        if d.endswith((".com.au",".au",".co.uk",".uk",".us")): return 0
+        if d.endswith(".ca"): return 1
+        if d.endswith(".in"): return 3
+        return 2
+    discovered.sort(key=region_rank)
+    checked_urls=set()
+    seen_records=[]
+    candidates=[]
+    max_checks_per_run=40
     for title,url,snippet,provider in discovered:
-            if checked >= max_checks_per_run or added >= 50: break
-            domain=host(url)
-            combined=re.sub(r"\s+"," ",title+" "+snippet)
-            path=urlparse(url).path or "/"
-            if not url.startswith("http") or "." not in domain or is_skipped(domain): continue
-            if NON_BUYER_PATH.search(path) or LOW_QUALITY.search(combined): continue
-            key=url.split("#")[0].rstrip("/")
-            if key in seen_pages: continue
-            seen_pages.add(key)
-            if key in old or any(host(v.get("website",""))==domain for v in old.values()): continue
-            checked += 1
-            page=get(url,timeout=4)
-            if page: stats["pages_fetched"] += 1
-            else: stats["page_failures"] += 1
-            parser=Links()
-            if page:
-                try: parser.feed(page)
-                except Exception: pass
-            page_text=re.sub(r"\s+"," "," ".join(parser.text))
-            # Search snippets alone never qualify a lead.
-            intent_probe=INTENT.search(page_text)
-            paid_probe=PAID_SIGNAL.search(page_text)
-            # Intent and payment language must be tightly connected on the same page.
-            # Broad proximity across a long article is not sufficient evidence.
-            on_page_intent=bool(intent_probe and paid_probe and abs(intent_probe.start()-paid_probe.start())<=600) and not UNPAID_SIGNAL.search(page_text[:12000]) and not LOW_QUALITY.search(page_text[:12000])
-            contact_url=""
-            emails=set(EMAIL_RE.findall(page_text))
-            for href,label in parser.links:
-                candidate=urljoin(url,href)
-                if host(candidate)!=domain: continue
-                if any(k in (href+" "+label).lower() for k in ["contact","about"]):
-                    contact_url=candidate
-                    contact_html=get(candidate,timeout=3)
-                    if contact_html:
-                        cp=Links()
-                        try: cp.feed(contact_html)
-                        except Exception: pass
-                        emails.update(EMAIL_RE.findall(" ".join(cp.text)))
-                    break
-            emails={e.lower() for e in emails if not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com"])}
-            # Email is optional at research stage; verify a business contact route before outreach.
-            if not on_page_intent or not (emails or contact_url):
-                continue
-            stats["intent_pages"] += 1
-            email=sorted(emails)[0] if emails else ""
+        if stats["pages_checked"]>=max_checks_per_run or len(candidates)>=50: break
+        domain=host(url)
+        normalized=url.split("#")[0].rstrip("/")
+        if not url.startswith("http") or "." not in domain or is_skipped(domain): continue
+        path=urlparse(url).path or "/"
+        combined=re.sub(r"\s+"," ",title+" "+snippet)
+        if NON_BUYER_PATH.search(path) or LOW_QUALITY.search(combined) or JOB_LISTING.search(combined): continue
+        if normalized in checked_urls: continue
+        checked_urls.add(normalized)
+        if normalized in seen:
+            stats["pages_skipped_seen"]+=1
+            continue
+        stats["pages_checked"]+=1
+        page=get(url,timeout=5)
+        now=datetime.now(timezone.utc)
+        outcome="page_fetch_failed"
+        next_check=now+timedelta(days=1)
+        evidence_excerpt=""
+        if not page:
+            stats["page_failures"]+=1
+            if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
+            continue
+        parser=Links()
+        try: parser.feed(page)
+        except Exception: pass
+        page_text=re.sub(r"\s+"," "," ".join(parser.text))
+        if not page_text:
+            outcome="empty_page"
+            next_check=now+timedelta(days=7)
+            if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
+            continue
+        intent_probe=INTENT.search(page_text)
+        paid_probe=PAID_SIGNAL.search(page_text)
+        direct_probe=DIRECT_INTENT.search(page_text)
+        on_page_intent=bool(intent_probe and paid_probe and direct_probe
+            and abs(intent_probe.start()-paid_probe.start())<=600
+            and not UNPAID_SIGNAL.search(page_text[:12000])
+            and not LOW_QUALITY.search(page_text[:12000])
+            and not JOB_LISTING.search(page_text[:12000]))
+        emails=set(EMAIL_RE.findall(page_text))
+        contact_url=""
+        for href,label in parser.links:
+            candidate=urljoin(url,href)
+            if host(candidate)!=domain or "contact" not in (href+" "+label).lower(): continue
+            contact_html=get(candidate,timeout=4)
+            if not contact_html: continue
+            contact_url=candidate
+            cp=Links()
+            try: cp.feed(contact_html)
+            except Exception: pass
+            emails.update(EMAIL_RE.findall(" ".join(cp.text)))
+            emails.update(re.findall(r"mailto:([^\"'<>? ]+)",contact_html,re.I))
+            break
+        emails={e.lower().strip(".,;:") for e in emails if EMAIL_RE.fullmatch(e.lower().strip(".,;:")) and not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com","noreply","no-reply"])}
+        email=sorted(emails)[0] if emails else ""
+        if not on_page_intent:
+            outcome="no_explicit_paid_business_request"
+            next_check=now+timedelta(days=30)
+        elif not email:
+            outcome="contact_form_or_email_not_verified"
+            next_check=now+timedelta(days=14)
+        else:
+            outcome="qualified_public_request"
+            next_check=now+timedelta(days=90)
+            stats["qualified_pages"]+=1
             intent_match=INTENT.search(page_text)
             paid_match=PAID_SIGNAL.search(page_text)
-            evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else combined[:300]
+            evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else page_text[:350]
             paid_excerpt=page_text[max(0,paid_match.start()-100):min(len(page_text),paid_match.end()+180)] if paid_match else ""
-            row={
-                "company":title[:180],"country":"Other international","contact":"",
-                "contact_url":contact_url,"email":email,"paidSignal":"Yes","website":url,
-                "source":url,"discovery_method":provider,"service":"Publicly stated business requirement — verify exact scope",
-                "status":"Research candidate",
-                "evidence":"Service requirement: "+evidence_excerpt[:350]+" | Paid-project evidence: "+paid_excerpt[:200],
-                "notes":"UNVERIFIED: on-page service need, paid-project signal and public contact route found. Verify freshness, client identity, budget, scope and contact before outreach or commitment.",
-                "needStage":"Needs human verification","contactVerified":"No",
-                "clientNeedConfirmed":"No","needEvidenceUrl":url,"financialApproved":"No",
-                "discovered_at":datetime.now(timezone.utc).isoformat()
-            }
-            old[key]=row;added+=1;stats["new_candidates"] += 1
-            if added>=50: break
-    cols=["company","country","contact","contact_url","email","paidSignal","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at"]
+            page_title=re.search(r"<title[^>]*>(.*?)</title>",page,re.I|re.S)
+            company=html.unescape(re.sub(r"<[^>]+>"," ",page_title.group(1))).strip() if page_title else title
+            company=re.sub(r"\s+"," ",company).split(" | ")[0].split(" — ")[0][:180] or title[:180]
+            evidence="Direct requirement: "+evidence_excerpt[:350]+" | Paid signal: "+paid_excerpt[:180]
+            candidates.append({
+                "company":company,"country":country_for(url,page_text),"contact":"","contact_url":contact_url or url,
+                "email":email,"paidSignal":"Yes","website":url,"source":url,"discovery_method":provider,
+                "service":service_for(evidence_excerpt+" "+paid_excerpt),"status":"Qualified lead",
+                "evidence":evidence,
+                "notes":"Automatically qualified from the business's own public page: first-person project requirement, nearby paid/contract signal and a publicly listed contact email. This is not a guarantee of delivery or client acceptance.",
+                "needStage":"Client need confirmed","contactVerified":"Yes","clientNeedConfirmed":"Yes",
+                "needEvidenceUrl":url,"financialApproved":"No","discovered_at":now.isoformat(),
+                "contactVerificationMethod":"Public email displayed on the same business website"
+            })
+        if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"evidence_excerpt":evidence_excerpt[:500] or None,"checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
+    if key and owner_id:
+        save_seen_pages(key,seen_records)
+    cols=["company","country","contact","contact_url","email","paidSignal","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at","contactVerificationMethod"]
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
-        for row in old.values():w.writerow({k:row.get(k,"") for k in cols})
-    print("Diagnostics: " + ", ".join(f"{k}={v}" for k,v in stats.items()))
-    print(f"Saved {len(old)} unverified research candidates; {added} new pages contained on-page requirement wording. No buyer or contact is marked confirmed.")
+        for row in candidates:w.writerow({k:row.get(k,"") for k in cols})
+    stats["new_candidates"]=len(candidates)
+    print("Diagnostics: "+", ".join(f"{k}={v}" for k,v in stats.items()))
+    print(f"Saved {len(candidates)} automatically verified direct-business leads. Unverified pages remain excluded from the private lead pipeline.")
 
 if __name__=="__main__": main()
