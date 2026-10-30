@@ -38,16 +38,35 @@ body.authenticated>header{position:sticky;top:0;z-index:20;background:#0b1020f2;
 #autoLoadBtn{white-space:nowrap}
 @media(max-width:650px){body.authenticated>header{position:static}.quicknav{top:0}.quicknav a{font-size:12px;padding:7px 10px}#automationCard{grid-template-columns:1fr}.panel{padding:14px}}
 </style>
-<style id="genie-simple-view">main.wrap > .panel:not(#automationCard):not(#financialQueuePanel):not(#automationHistoryPanel):not(#financeLedgerPanel){display:none!important}#automationCard p{max-width:780px}#automationHistoryPanel h3{margin-top:18px}#leadRowsPanel .footer{display:none}</style>\n</head>
+<style id="genie-simple-view">
+/* One screen at a time: keep the owner interface deliberately small. */
+body.authenticated main.wrap > section,body.authenticated main.wrap > .layout{display:none!important}
+body.authenticated main.wrap > #automationCard{display:grid!important}
+body.authenticated.view-dashboard main.wrap > .stats{display:grid!important}
+body.authenticated.view-leads main.wrap > .layout{display:grid!important}
+body.authenticated.view-orders main.wrap > #financialQueuePanel{display:block!important}
+body.authenticated.view-income main.wrap > #financeLedgerPanel{display:block!important}
+body.authenticated.view-activity main.wrap > #automationHistoryPanel{display:block!important}
+body.authenticated.view-dashboard main.wrap > #automationCard{display:grid!important}
+body.authenticated.view-leads main.wrap > #automationCard,body.authenticated.view-orders main.wrap > #automationCard,body.authenticated.view-income main.wrap > #automationCard,body.authenticated.view-activity main.wrap > #automationCard{display:none!important}
+body.authenticated main.wrap>.footer{display:none!important}
+.quicknav a[aria-current="page"]{background:var(--accent);color:#09201b;border-color:var(--accent)}
+#automationCard{grid-template-columns:minmax(0,1fr) auto}
+#automationCard p{max-width:780px}
+#automationHistoryPanel h3{margin-top:18px}
+#leadRowsPanel{margin:0}
+#leadRowsPanel .footer{display:none}
+@media(max-width:650px){.quicknav{position:sticky;top:0;overflow-x:auto;flex-wrap:nowrap}.quicknav a{white-space:nowrap}}
+</style>\n</head>
 <body>
 
 <section id="authPanel" aria-labelledby="authTitle"><h1 id="authTitle">GenieAgent <span style="color:#70e1c1">Secure Login</span></h1><p class="sub">Owner-only access. Accounts must be created by the project owner.</p><label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="username" required placeholder="you@example.com"><label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="At least 8 characters"><div class="auth-actions"><button id="signInBtn" class="primary">Sign in</button></div><p id="authMessage" role="status">Account creation is restricted. Sign in with the owner account.</p></section>
 
-<header><div class="actions" style="margin:0"><span id="accountLabel" class="muted"></span><button id="signOutBtn">Sign out</button></div><div><h1>GenieDevs <span>Client Desk</span></h1><p class="sub">Lead pipeline · tailored outreach · follow-up tracking</p></div><div class="actions" style="margin:0"><button id="autoLoadBtn" class="primary">Daily Automation ↗</button><button id="exportBtn">Export CSV backup</button><input id="csvFile" type="file" accept=".csv,text/csv" class="hide"></div></header>
-<nav class="quicknav" aria-label="Main navigation"><a href="#automationCard">Dashboard</a><a href="#leadRowsPanel">Leads</a><a href="#financialQueuePanel">Orders & approvals</a><a href="#financeLedgerPanel">Income / expenses</a><a href="#automationHistoryPanel">Activity</a></nav>
+<header><div class="actions" style="margin:0"><span id="accountLabel" class="muted"></span><button id="signOutBtn">Sign out</button></div><div><h1>GenieDevs <span>Client Desk</span></h1><p class="sub">One clear place to manage researched leads, client orders and activity</p></div><div class="actions" style="margin:0"><button id="autoLoadBtn" class="primary">Daily Automation ↗</button><button id="exportBtn">Export CSV backup</button><input id="csvFile" type="file" accept=".csv,text/csv" class="hide"></div></header>
+<nav class="quicknav" aria-label="Main navigation"><a href="#automationCard" data-view="dashboard">Dashboard</a><a href="#leadRowsPanel" data-view="leads">Leads</a><a href="#financialQueuePanel" data-view="orders">Orders & approvals</a><a href="#automationHistoryPanel" data-view="activity">Activity records</a><a href="#financeLedgerPanel" data-view="income">Income / expenses</a></nav>
 <main class="wrap">
-<div class="notice"><strong>Automatic workflow:</strong> discover leads → verify public evidence → contact and follow up only through connected, permitted channels → detect order. Your approval is required for agreements, quotes with commitments, spending, and every work action after an order. No financial commitment is made automatically.</div>
-<section id="automationCard" class="panel"><div><h2>Daily lead research automation</h2><p><strong>Scheduled: every 4 hours.</strong> Searches multiple independent public search engines and checks source pages for actual stated requirements.</p><p class="muted">Research candidates are saved privately with evidence and remain unverified until checked. Email sending requires a configured sender and verified lead. Calling, inbox reply monitoring and automatic follow-ups are not connected yet.</p></div><button id="automationOpenBtn" class="primary">Open latest run ↗</button></section>
+<div class="notice"><strong>How to use:</strong> Dashboard = automation status · Leads = research results · Orders = approvals · Activity = email/call/client records. Income / expenses is a separate ledger. Only genuine, evidence-backed prospects are saved; a lead is not an order until the client confirms.</div>
+<section id="automationCard" class="panel"><div><h2>Daily lead research automation</h2><p><strong>Scheduled: every hour.</strong> Searches independent public search sources and checks pages for stated business requirements.</p><p class="muted">Only evidence-backed research candidates are saved. They remain unverified until checked. Email sending needs a verified lead. Automatic calls, inbox monitoring and follow-ups are not connected yet.</p></div><button id="automationOpenBtn" class="primary">Open latest run ↗</button></section>
 <section id="financialQueuePanel" class="panel"><h2>Financial approval queue</h2><p class="muted">Only client-confirmed orders reach this approval stage. Agreements, financial terms and any spending require your explicit permission.</p><div id="financialQueue" class="empty">Loading financial approvals…</div></section>
 <section id="automationHistoryPanel" class="panel"><h2>Activity records</h2><p class="muted">Separate records for sent emails, calls, client replies / confirmations, and system activity.</p><h3>Emails</h3><div id="emailRecords" class="empty">Loading email records…</div><h3>Calls</h3><div id="callRecords" class="empty">Loading call records…</div><h3>Client responses / order stages</h3><div id="confirmationRecords" class="empty">Loading confirmations…</div><h3>Automation & system history</h3><div id="automationHistory" class="empty">Loading audit history…</div></section>
 <section class="stats"><div class="stat"><small>Total leads</small><strong id="totalStat">0</strong></div><div class="stat"><small>Ready to contact</small><strong id="readyStat">0</strong></div><div class="stat"><small>Contacted</small><strong id="contactedStat">0</strong></div><div class="stat"><small>Replies</small><strong id="replyStat">0</strong></div></section>
@@ -133,7 +152,18 @@ body.authenticated>header{position:sticky;top:0;z-index:20;background:#0b1020f2;
 </main>
 <script>
 (function(){
-const $=id=>document.getElementById(id);const KEY='geniedevs-client-desk-v1';let leads=[];let selected='';
+const $=id=>document.getElementById(id);
+document.body.classList.add('view-dashboard');
+document.querySelectorAll('.quicknav a[data-view]').forEach(link=>link.addEventListener('click',e=>{
+ e.preventDefault();
+ const view=link.dataset.view;
+ document.body.classList.remove('view-dashboard','view-leads','view-orders','view-activity','view-income');
+ document.body.classList.add('view-'+view);
+ document.querySelectorAll('.quicknav a[data-view]').forEach(a=>a.setAttribute('aria-current',a===link?'page':'false'));
+ history.replaceState(null,'',link.getAttribute('href'));
+}));
+document.querySelector('.quicknav a[data-view="dashboard"]')?.setAttribute('aria-current','page');
+const KEY='geniedevs-client-desk-v1';let leads=[];let selected='';
 const fields=['company','country','contact','email','phone','website','source','service','status','evidence','notes','needStage','contactVerified','clientNeedConfirmed','needEvidenceUrl','dealCurrency','dealRevenue','toolCost','paymentFees','deliveryCost','contingency','taxReserve','scopeConfirmed','clientBudgetConfirmed','externalCostsVerified','paymentTerms','costEvidenceUrl','financialApproved'];
 function load(){try{leads=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(leads))leads=[]}catch(e){leads=[]}}
 async function persist(){localStorage.setItem(KEY,JSON.stringify(leads));render();if(window.genieSession){try{const uid=window.genieSession.user.id;const rows=leads.map(x=>({id:isUuid(x.id)?x.id:uuid(),owner_id:uid,company_name:x.company||'Unnamed',website_url:x.website||null,contact_name:x.contact||null,contact_email:x.email||null,service_need:x.service||null,evidence_summary:x.evidence||null,evidence_url:x.needEvidenceUrl||x.source||null,lead_status:dbStatus(x),payload:x,updated_at:new Date().toISOString()}));leads.forEach((x,i)=>x.id=rows[i].id);localStorage.setItem(KEY,JSON.stringify(leads));const {error}=await window.genieDb.from('leads').upsert(rows,{onConflict:'id'});if(error)throw error;for(const x of leads){if(!isUuid(x.id)||!(x.needStage==='Client need confirmed'&&x.clientNeedConfirmed==='Yes'&&x.contactVerified==='Yes'&&x.needEvidenceUrl))continue;const revenue=Math.max(0,Number(x.dealRevenue)||0),costs=['toolCost','paymentFees','deliveryCost','contingency','taxReserve'].reduce((sum,k)=>sum+Math.max(0,Number(x[k])||0),0),approved=x.financialApproved==='Yes';const {data:existing,error:findError}=await window.genieDb.from('financial_approvals').select('id').eq('lead_id',x.id).limit(1);if(findError)throw findError;const approval={owner_id:uid,lead_id:x.id,approval_type:'quote',approval_status:approved?'approved':'pending',currency:x.dealCurrency||'USD',proposed_revenue:revenue,estimated_costs:costs,scope_summary:(x.service||'Service scope')+' — '+(x.evidence||''),cost_breakdown:{tools:Number(x.toolCost)||0,fees:Number(x.paymentFees)||0,delivery:Number(x.deliveryCost)||0,contingency:Number(x.contingency)||0,tax_reserve:Number(x.taxReserve)||0},evidence_url:x.costEvidenceUrl||x.needEvidenceUrl||null,payment_terms:x.paymentTerms||null,approved_by:approved?uid:null,approved_at:approved?new Date().toISOString():null,decision_notes:approved?'Owner approved after financial gate validation.':'Pending owner financial approval.'};if(existing&&existing.length){const {error:updateError}=await window.genieDb.from('financial_approvals').update(approval).eq('id',existing[0].id);if(updateError)throw updateError}else{const {error:insertError}=await window.genieDb.from('financial_approvals').insert(approval);if(insertError)throw insertError}}render();await loadAudit()}catch(e){console.error(e);alert('Cloud sync failed; automation changes are not considered recorded: '+(e.message||e));}}}
