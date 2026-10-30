@@ -98,16 +98,16 @@ INTENT = re.compile(
 )
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download", re.I)
 
-def get(url, timeout=8):
+def get(url, timeout=5):
     # Retry transient blocks/timeouts before the caller moves to another engine.
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             req = Request(url, headers=HEADERS)
             with urlopen(req, timeout=timeout) as r:
                 if r.status != 200: return ""
                 return r.read(800_000).decode("utf-8", "ignore")
         except Exception as exc:
-            if attempt == 2:
+            if attempt == 1:
                 print(f"Request failed after retries: {urlparse(url).netloc} ({type(exc).__name__})")
             else:
                 time.sleep(1 + attempt)
@@ -136,7 +136,7 @@ def search(query):
         ("DuckDuckGo HTML","https://html.duckduckgo.com/html/?q="+quote(query),"html"),
     ]
     for provider,url,kind in providers:
-        raw=get(url,timeout=10)
+        raw=get(url,timeout=5)
         if not raw: continue
         if kind=="rss":
             try:
@@ -177,8 +177,11 @@ def main():
                     old[key]=row
     added=0
     checked=0
-    max_checks_per_run=150
-    for query in QUERIES:
+    batch_size=20
+    batch_index=(int(datetime.now(timezone.utc).timestamp())//14400) % ((len(QUERIES)+batch_size-1)//batch_size)
+    query_batch=QUERIES[batch_index*batch_size:(batch_index+1)*batch_size]
+    max_checks_per_run=60
+    for query in query_batch:
         stats["queries"] += 1
         if checked >= max_checks_per_run or added >= 50: break
         results = search(query)
