@@ -114,3 +114,5 @@ for path in ROOT.rglob("*"):
             fail(f"possible secret material detected in {path.relative_to(ROOT)}")
 
 print("PASS: auth gate, strict confirmed-lead qualification, private CRM, audit trail, financial gate, guarded outreach, and secret-pattern checks.")
+
+# Regression policy is maintained alongside the research-first qualification workflow.
