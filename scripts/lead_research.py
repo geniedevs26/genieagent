@@ -166,16 +166,21 @@ def host(url):
     try: return (urlparse(url).hostname or "").lower().removeprefix("www.")
     except Exception: return ""
 
-def search(query):
+def search(query, page_offset=0):
     results=[]
+    page_offset=max(0,int(page_offset))
+    bing_first=page_offset*10+1
+    ddg_start=page_offset*30
+    google_start=page_offset*10
+    page_num=page_offset+1
     # Search engines are independent: a block or outage never ends discovery.
     providers=[
-        ("Bing RSS","https://www.bing.com/search?format=rss&q="+quote(query),"rss"),
-        ("DuckDuckGo HTML","https://html.duckduckgo.com/html/?q="+quote(query),"html"),
-        ("Google HTML","https://www.google.com/search?num=20&q="+quote(query),"html"),
-        ("Mojeek HTML","https://www.mojeek.com/search?q="+quote(query),"html"),
-        ("Startpage HTML","https://www.startpage.com/sp/search?query="+quote(query),"html"),
-        ("Ecosia HTML","https://www.ecosia.org/search?q="+quote(query),"html"),
+        ("Bing RSS","https://www.bing.com/search?format=rss&count=10&first="+str(bing_first)+"&q="+quote(query),"rss"),
+        ("DuckDuckGo HTML","https://html.duckduckgo.com/html/?s="+str(ddg_start)+"&q="+quote(query),"html"),
+        ("Google HTML","https://www.google.com/search?num=20&start="+str(google_start)+"&q="+quote(query),"html"),
+        ("Mojeek HTML","https://www.mojeek.com/search?page="+str(page_num)+"&q="+quote(query),"html"),
+        ("Startpage HTML","https://www.startpage.com/sp/search?page="+str(page_num)+"&query="+quote(query),"html"),
+        ("Ecosia HTML","https://www.ecosia.org/search?p="+str(page_num)+"&q="+quote(query),"html"),
     ]
     with ThreadPoolExecutor(max_workers=len(providers)) as pool:
         fetched=list(pool.map(lambda item:(item[0],item[1],item[2],get(item[1],timeout=5,attempts=1)),providers))
@@ -279,11 +284,13 @@ def main():
     os.makedirs("data",exist_ok=True)
     key,owner_id=owner_context()
     seen=load_seen_urls(key,owner_id)
-    stats={"queries":0,"search_results":0,"empty_searches":0,"pages_checked":0,"pages_skipped_seen":0,"page_failures":0,"qualified_pages":0,"new_candidates":0}
+    # Rotate result pages each hourly run so discovery does not stall on page one.
+    page_offset=datetime.now(timezone.utc).hour % 10
+    stats={"search_page_offset":page_offset,"queries":0,"search_results":0,"empty_searches":0,"pages_checked":0,"pages_skipped_seen":0,"page_failures":0,"qualified_pages":0,"new_candidates":0}
     discovered=[]
     for query in QUERIES:
         stats["queries"]+=1
-        results=search(query)
+        results=search(query,page_offset)
         stats["search_results"]+=len(results)
         if not results: stats["empty_searches"]+=1
         discovered.extend(results)
