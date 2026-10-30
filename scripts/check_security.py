@@ -51,7 +51,9 @@ for item in [
         fail(f"missing expected UI safety/audit gate: {item}")
 
 for item in [
-    'on_page_intent=bool(INTENT.search(page_text))',
+    'intent_probe=INTENT.search(page_text)',
+    'paid_probe=PAID_SIGNAL.search(page_text)',
+    'on_page_intent=bool(intent_probe and paid_probe',
     'if not on_page_intent or not (emails or contact_url):',
     'PAID_SIGNAL',
     'UNPAID_SIGNAL',
