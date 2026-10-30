@@ -6,6 +6,7 @@ on:
       - 'scripts/lead_research.py'
       - 'scripts/sync_candidates_supabase.py'
       - 'scripts/auto_outreach.py'
+      - 'scripts/inbox_monitor.py'
       - '.github/workflows/daily-lead-research.yml'
   schedule:
     - cron: "17 * * * *"
@@ -49,6 +50,16 @@ jobs:
           GENIE_SENDER_EMAIL: ${{ secrets.GENIE_SENDER_EMAIL }}
           SUPPRESSED_EMAILS: ${{ secrets.SUPPRESSED_EMAILS }}
         run: python scripts/auto_outreach.py
+      - name: Monitor inbox for replies and delivery bounces when IMAP is configured
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
+          IMAP_HOST: ${{ secrets.IMAP_HOST }}
+          IMAP_PORT: ${{ secrets.IMAP_PORT }}
+          IMAP_USERNAME: ${{ secrets.IMAP_USERNAME }}
+          IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
+          IMAP_FOLDER: ${{ secrets.IMAP_FOLDER }}
+        run: python scripts/inbox_monitor.py
       - name: Report safe research summary
         run: |
           python - <<'PY'
