@@ -1,56 +1,73 @@
 # GenieAgent
 
-Owner-only automated client acquisition system: scheduled public research, strict lead qualification, private CRM sync, audit trail, and financial approval gate.
+Owner-only client acquisition automation: persistent public research, automatic qualification of direct-business requirements, initial outreach, one reply-aware follow-up, client-response monitoring, and stage-by-stage owner approval for every post-interest project action.
 
 ## Live app and source
 - Live dashboard: https://genieagent.pages.dev/
 - Repository: https://github.com/geniedevs26/genieagent
-- Daily workflow: https://github.com/geniedevs26/genieagent/actions/workflows/daily-lead-research.yml
+- Scheduled workflow: https://github.com/geniedevs26/genieagent/actions/workflows/daily-lead-research.yml
 
-## Automated workflow
-1. GitHub Actions runs every hour (cron `17 * * * *`), plus on configured code changes or manual dispatch.
-2. Public search results are discovery hints only. A research candidate requires requirement wording on the source page; a public email is optional because a verified business contact form may be the contact route. Search snippets alone are discarded.
-3. Unverified research candidates sync to the owner's private Supabase CRM with status `research`. They are not confirmed buyers and must not be contacted until the client identity, current requirement, contact route and applicable outreach rules are verified.
-4. Financial approval is required before any agreement, quote that creates a commitment, purchase, paid tool, or spending. Discovery does not create an approval or imply a client order.
-5. Inserts, updates and deletes for leads, outreach actions, finance entries, workflow runs and financial approvals are captured in `automation_events`. The dashboard displays the latest audit events and financial approval queue.
-6. Duplicate website records are skipped. Existing CRM records are not overwritten by research sync.
+## Automated prospecting workflow
+1. GitHub Actions runs hourly (cron 17 * * * *).
+2. Public search snippets are discovery hints only. The source page must contain first-person business intent, a nearby paid/contract signal, and no job-board/unpaid indicators.
+3. The page must be on the business's own website and expose a public business email. The research worker checks the contact page, then records the page URL, evidence excerpt, provider and next recheck time in the private research_pages table.
+4. Research cursor state is persistent. Recently checked pages are skipped; fetch failures are retried sooner; non-matching pages are rechecked later. Search therefore progresses beyond the same first 40 results on every run.
+5. Only automatically verified direct-business requirements with a public same-site email enter leads as qualified. Unverified pages and contact-form-only pages are not treated as qualified email leads.
+6. The system sends a relevant initial inquiry automatically. One follow-up may be sent after five days only when inbox monitoring is configured and no reply, bounce or opt-out has been detected. A reply, bounce or opt-out stops further follow-up. SMTP acceptance is never described as confirmed delivery.
+7. A client reply requesting a quote/proposal creates a private client-order opportunity and a pending financial-proposal approval. The system does not send a proposal at this point.
 
-## One-time setup
-In GitHub **Settings → Secrets and variables → Actions → New repository secret**, configure:
-- `SUPABASE_SERVICE_ROLE_KEY`: Supabase project server-side service-role/secret key. Keep it secret; never paste it in chat or commit it.
-- `GENIE_OWNER_EMAIL`: exact email of the owner account in Supabase Authentication.
+## Owner approval after client interest
+Every post-interest stage has a separate approval request in the dashboard's Orders & approvals view:
 
-Without those two secrets, the workflow safely skips private CRM sync. No recurring manual lead entry is intended; lead research and qualifying records are automated after this one-time setup. For automatic initial email outreach (maximum 5/day, only after requirement and contact verification), also add `SMTP_HOST`, `SMTP_PORT` (normally `587`), `SMTP_USERNAME`, `SMTP_PASSWORD`, `GENIE_SENDER_EMAIL`, and `AUTO_OUTREACH_ENABLED` with value `true`. Use an SMTP account you control; for Gmail, use an App Password if your account supports it, never your normal password. The sender must be authorized to send from `GENIE_SENDER_EMAIL`. If any sender setting is missing, outreach safely skips. Every send attempt is logged before execution; only initial inquiries are sent—no automatic follow-ups, quotes, or payment requests.
+1. **Financial proposal:** complete the financial review (scope, budget, amount, all costs, net profit, payment terms and current pricing evidence), edit the exact proposal, then approve. The hourly executor sends only after both financial review and stage approval pass.
+2. **Agreement:** after the client accepts the proposal, an agreement draft is queued. Edit and approve before it is sent.
+3. **Project start:** after the client accepts the agreement, a separate start approval is queued. The project does not advance until approved.
+4. **Milestone delivery:** upload the deliverable to a location you control, enter the URL and message, then approve before the email is sent.
+5. **Final delivery:** same separate upload, review and approval gate.
+6. **Order closure:** after the client explicitly accepts final delivery, a closure approval is queued. The order is marked completed only after owner approval.
 
+An approval click queues execution for the next hourly workflow run; it does not itself send the message. If a required financial field or document placeholder remains incomplete, execution is blocked. Ambiguous SMTP failures are held for review and are not retried automatically.
 
-## Inbox replies and bounce handling
-An optional IMAP monitor runs in the same hourly workflow when mailbox secrets are configured. Add:
-- `IMAP_HOST`: mailbox IMAP server hostname (for example, your email provider's documented IMAP host).
-- `IMAP_PORT`: normally `993`.
-- `IMAP_USERNAME`: mailbox login.
-- `IMAP_PASSWORD`: an app password or provider-issued mailbox credential; never use or share your normal password if the provider offers app passwords.
-- `IMAP_FOLDER`: normally `INBOX`.
+## Required GitHub Actions secrets
+For private Supabase sync and research cursor:
+- SUPABASE_SERVICE_ROLE_KEY
+- GENIE_OWNER_EMAIL
 
-The monitor reads unread messages only. A matched inbound reply updates the lead and verifies delivery of the original message; a matched bounce marks the attempt bounced and revokes that email contact's verified flag. Unmatched messages are left unread. It does not store full email bodies, send replies, or send follow-ups. SMTP acceptance alone remains unverified. Positive delivery for messages with no reply still requires a delivery-status webhook/provider; this monitor cannot prove that a silent recipient received an email.
+For initial outreach, follow-up and approved-stage emails:
+- SMTP_HOST
+- SMTP_PORT (normally 587)
+- SMTP_USERNAME
+- SMTP_PASSWORD (provider app password/credential)
+- GENIE_SENDER_EMAIL
+- Optional SUPPRESSED_EMAILS (comma-separated addresses that must never be contacted)
 
-## Calling and follow-ups
-Automated phone calls are not enabled: a real calling provider, credentials, and legally compliant caller identity are required. The dashboard must not count owner-entered call notes as connected calls. Automatic follow-ups are intentionally disabled until the initial email's delivery is verified and a safe stop-on-reply/stop-on-bounce rule can be enforced. No client-facing follow-up, quote, proposal, agreement or payment request is sent without the required owner permission.
+For inbox reply/bounce and client-stage monitoring:
+- IMAP_HOST
+- IMAP_PORT (normally 993)
+- IMAP_USERNAME
+- IMAP_PASSWORD
+- Optional IMAP_FOLDER (normally INBOX)
 
-## Financial permission boundary
-Financial approvals are deliberately **not automatic**. Confirm the real project scope, client budget/payment, revenue, all costs, net profit, pricing evidence and payment terms before approving. Discovery alone cannot approve spending or a quote. Approval is recorded in the private database and audit history.
+These credentials belong only in GitHub Actions Secrets. Do not paste them into chat or commit them. AUTO_OUTREACH_ENABLED is set by the workflow after the qualification and suppression gates; it is not a repository secret.
 
-## Outbound actions
-Automatic initial email outreach is wired into the workflow but remains inactive until SMTP secrets are configured. It sends at most five initial emails per day to leads marked qualified with both `clientNeedConfirmed=Yes` and `contactVerified=Yes`; previous attempts are not repeated. Inbox/reply monitoring, automatic follow-ups, and calling are NOT connected in this repository and must not be described as active. Quotes involving commitments, agreements, paid tools and spending remain blocked until owner approval.
+## Calling
+Automatic AI phone calling is not connected. A compliant PSTN calling provider and funded/usable calling route are required; no zero-cost provider credentials are currently configured. The dashboard does not count manually entered call notes as verified calls.
 
 ## Security and records
-- Supabase RLS restricts database rows to the authenticated owner.
-- Public repository files must not contain lead lists, credentials, API keys or private customer information.
-- Export CSV is a backup convenience, not the source of truth; Supabase plus `automation_events` is the persistent record.
-- Research is limited by public-page availability and matching evidence; zero results is preferable to inventing confirmed buyer intent.
+- Supabase RLS restricts CRM, orders, approval requests and research cursor records to the owner.
+- Candidate and client details are not committed to this public repository or uploaded as workflow artifacts.
+- automation_events records research, outreach, replies, bounces, approvals and stage transitions.
+- A public email address and a published requirement are evidence of a contact route and stated need, not a guarantee of email delivery, available budget or an accepted order.
+- Opt-outs and detected bounces suppress future automated outreach.
+- Research prefers zero results to invented or weak leads.
 
 ## Run locally
-```bash
+~~~bash
 python scripts/lead_research.py
-```
+python scripts/sync_candidates_supabase.py
+python scripts/inbox_monitor.py
+python scripts/auto_outreach.py
+python scripts/execute_approved_actions.py
+~~~
 
-Cloudflare Pages should use framework preset **None**, no build command, and `/` as the output directory. A new commit deploys when the Pages Git integration is active.
+Cloudflare Pages uses framework preset None, no build command, and / as the output directory. A new commit deploys when the Pages Git integration is active.
