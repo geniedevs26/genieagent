@@ -153,6 +153,31 @@ def main():
         if stage not in ("financial_proposal_send","agreement_send","project_start","milestone_delivery","final_delivery","order_close"):
             blocked+=1; continue
 
+        # Validate every sendable field before locking the approval request.
+        if stage in ("financial_proposal_send","agreement_send","milestone_delivery","final_delivery"):
+            block_reason=""
+            if not all([host,user,password,sender]):
+                block_reason="SMTP configuration is missing."
+            elif not (lead.get("contact_email") or "").strip():
+                block_reason="Verified client email is missing."
+            else:
+                draft=(req.get("document_body") or "").strip().lower()
+                placeholders=("enter the owner-approved amount","enter verified terms","confirm exact deliverables",
+                              "confirm against the approved","confirm the approved deposit","confirm milestones",
+                              "timeline: confirm","to be confirmed","draft for owner review")
+                if not draft:
+                    block_reason="Complete message body is missing."
+                elif any(x in draft for x in placeholders):
+                    block_reason="Draft still contains unresolved placeholders; edit the exact document before approval."
+                elif stage in ("milestone_delivery","final_delivery") and not (req.get("document_url") or "").strip() and "http://" not in draft and "https://" not in draft:
+                    block_reason="A verified delivery URL is required."
+            if block_reason:
+                api("/rest/v1/approval_requests?id=eq."+req["id"],key,"PATCH",{
+                    "result_notes":"Approved by owner, but execution is blocked: "+block_reason
+                },"return=minimal")
+                blocked+=1
+                continue
+
         # Lock before external side effects. If a run is interrupted mid-send, it will not resend.
         api("/rest/v1/approval_requests?id=eq."+req["id"]+"&status=eq.approved",key,"PATCH",{
             "status":"executing","result_notes":"Owner approval received; execution started."
