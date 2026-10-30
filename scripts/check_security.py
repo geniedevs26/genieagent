@@ -122,7 +122,8 @@ for item in [
     '"client_accepted_at":None',
     'accepted_terms.get("proposed_revenue")','accepted_terms.get("payment_terms")',
     '"agreed_amount":accepted_terms.get("proposed_revenue")',
-    '"action_type":"in.(email,follow_up,proposal,financial_proposal_send,agreement,agreement_send,milestone_delivery,final_delivery,inbound_reply)"',
+    '"action_type":"in.(email,follow_up,ai_reply,proposal,financial_proposal_send,agreement,agreement_send,milestone_delivery,final_delivery,inbound_reply)"',
+    "def ai_reply_text(","def send_ai_reply(","AUTO_REPLY_BLOCK_RE","CLOUDFLARE_AI_ACCOUNT_ID","ai_reply_limit=max(0,3-ai_replies_today)",
 ]:
     if item not in inbox:
         fail(f"missing reply/opt-out/order transition gate: {item}")
@@ -181,6 +182,6 @@ if 'PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"' not in outreach:
 if 'NON_BUYER_PUBLISHERS = {"hubspot.com"}' not in outreach:
     fail("known non-buyer publisher block missing")
 
-print("PASS: authenticated CRM, persistent research cursor, direct-buyer qualification, automatic outreach/follow-up, opt-out/bounce suppression, and per-stage owner approval gates.")
+print("PASS: authenticated CRM, persistent research cursor, direct-buyer qualification, bounded AI email replies, automatic outreach/follow-up, opt-out/bounce suppression, and per-stage owner approval gates.")
 
 # Regression policy is maintained alongside the research-first qualification workflow.
