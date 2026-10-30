@@ -296,7 +296,7 @@ def main():
     query=urllib.parse.urlencode({
         "owner_id":"eq."+owner_id,
         "action_type":"in.(email,follow_up,ai_reply,proposal,financial_proposal_send,agreement,agreement_send,milestone_delivery,final_delivery,inbound_reply)",
-        "select":"id,lead_id,recipient,approval_status,draft_subject,action_type",
+        "select":"id,lead_id,recipient,approval_status,draft_subject,action_type,created_at",
         "order":"created_at.desc","limit":"3000"
     })
     actions=api("/rest/v1/outreach_actions?"+query,key) or []
@@ -319,7 +319,10 @@ def main():
     leads_by_id={row["id"]:row for row in leads}
     mail=imaplib.IMAP4_SSL(host,port,timeout=20)
     processed=replies=bounces=ignored=orders_created=approvals_created=optouts=ai_replies=ai_held=0
-    ai_reply_limit=3
+    today=datetime.now(timezone.utc).date().isoformat()
+    ai_replies_today=sum(1 for a in actions if a.get("action_type")=="ai_reply"
+                         and (a.get("created_at") or "").startswith(today))
+    ai_reply_limit=max(0,3-ai_replies_today)
     try:
         mail.login(username,password)
         status,_=mail.select(folder)
