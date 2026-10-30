@@ -7,6 +7,7 @@ This script NEVER confirms buyer intent. Search evidence remains a candidate unt
 the client explicitly confirms the requirement and contact details are verified.
 """
 import csv, html, json, os, re, time
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote, urlparse, urljoin, parse_qs, unquote
