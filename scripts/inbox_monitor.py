@@ -24,7 +24,7 @@ EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
 BOUNCE_RE = re.compile(r"undeliver|delivery status notification|delivery failure|returned mail|mail delivery failed|address not found|user unknown|recipient rejected|550 5\.", re.I)
 OPTOUT_RE = re.compile(r"\b(?:stop emailing|stop contacting|do not contact|don't contact|remove me|unsubscribe|do not email|please stop|not interested)\b", re.I)
 PROPOSAL_REQUEST_RE = re.compile(r"\b(?:please send (?:me |us )?(?:a )?(?:quote|quotation|proposal|estimate)|send (?:me |us )?(?:a )?(?:quote|quotation|proposal|estimate)|provide (?:a )?(?:quote|quotation|proposal|estimate)|share (?:a )?(?:quote|quotation|proposal|estimate)|pricing|how much (?:would|will|does) it cost|what (?:is|would be) your (?:price|fee)|interested in working with you|interested in your services|we need help with|we would like to hire you|we'd like to hire you|can you help us)\b", re.I)
-ORDER_ACCEPT_RE = re.compile(r"\b(?:accept your (?:proposal|quote|quotation|offer)|approve (?:the )?(?:proposal|quote|quotation)|we(?:'d| would) like to proceed|we're ready to proceed|we are ready to proceed|please proceed with (?:the )?(?:project|work)|please proceed with (?:the )?(?:formal )?(?:project )?(?:review|estimate|quote)|go ahead with (?:the )?(?:project|work)|let's go ahead|we want to move forward|i want to move forward|confirm (?:the )?order|we accept the terms|we agree to the price|we are ready to start|we're ready to start|let's move forward with (?:the )?(?:project|work))\b", re.I)
+ORDER_ACCEPT_RE = re.compile(r"\b(?:accept your (?:proposal|quote|quotation|offer)|approve (?:the )?(?:proposal|quote|quotation)|we(?:'d| would) like to proceed|we're ready to proceed|we are ready to proceed|please proceed with (?:the )?(?:project|work)|please proceed with (?:the )?(?:formal )?(?:project )?(?:review|estimate|quote)|go ahead with (?:the )?(?:project|work)|let's go ahead|we want to move forward|i want to move forward|i confirm i want to proceed|confirm (?:the )?order|we accept the terms|we agree to the price|we are ready to start|we're ready to start|let's move forward with (?:the )?(?:project|work))\b", re.I)
 AGREEMENT_ACCEPT_RE = re.compile(r"\b(?:signed (?:the )?agreement|agreement signed|i have signed|we have signed|we agree to the agreement|we accept the agreement|we agree to the terms|terms accepted|signed copy attached)\b", re.I)
 AUTO_REPLY_BLOCK_RE = re.compile(r"\b(?:price|pricing|quote|quotation|estimate|budget|cost|fee|rate|payment|invoice|contract|agreement|terms|deadline|timeline|availability|meeting|meet|call|phone|video call|interview|nda|confidential|security|legal|tax|credentials|password)\b", re.I)
 FINAL_ACCEPT_RE = re.compile(r"\b(?:final delivery approved|we accept the final delivery|we approve the final delivery|final work accepted|work accepted|project completed successfully|we confirm completion|all deliverables accepted|we accept all deliverables)\b", re.I)
@@ -125,6 +125,25 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
 
     if not order and order_accept:
         prior_buyer_details=payload.get("buyerScopeRequests") if isinstance(payload.get("buyerScopeRequests"),list) else []
+        prior_text=" ".join(
+            item.get("message_excerpt","") for item in prior_buyer_details if isinstance(item,dict)
+        )
+        all_buyer_details=prior_text+" "+reply_body
+        has_scope=bool(re.search(r"\\b(?:website|web app|mobile app|android app|chatbot|dashboard|spreadsheet|Excel|WordPress|Shopify|deliverables?|features?|pages?|screens?|automation|workflow|design|develop|build|redesign|integrate|translate|clean)\\b",all_buyer_details,re.I))
+        has_budget=bool(re.search(r"(?:[$€£₹]\\s?\\d|\\b(?:USD|EUR|GBP|INR|AUD|CAD)\\s?\\d|\\d[\\d,.]*\\s?(?:USD|EUR|GBP|INR|AUD|CAD)\\b|\\b(?:budget|budgeted|hourly rate|fixed price|per hour)\\b)",all_buyer_details,re.I))
+        has_timing=bool(re.search(r"\\b(?:by|before|within|deadline|timeline|weeks?|months?|days?|urgent|asap|flexible)\\b",all_buyer_details,re.I))
+        if not (has_scope and has_budget and has_timing):
+            prior_buyer_details.append({
+                "received_at":now,"sender":sender,"subject":subject[:180],
+                "message_excerpt":re.sub(r"\\s+"," ",reply_body)[:700]
+            })
+            payload["buyerScopeRequests"]=prior_buyer_details[-8:]
+            payload["status"]="Pre-sales discovery"
+            api("/rest/v1/leads?id=eq."+lead["id"],key,"PATCH",{"payload":payload,"updated_at":now},"return=minimal")
+            event(key,owner_id,"buyer_scope_intake","automated",
+                "Buyer expressed proceed intent, but required scope, budget or timing details are incomplete. Automatic clarification requested before order confirmation.",
+                {"lead_id":lead["id"],"sender":sender,"subject":subject[:160]})
+            return "scope_intake_reply"
         buyer_details=" | ".join(clean.get("message_excerpt","") if isinstance(clean,dict) else "" for clean in prior_buyer_details)
         buyer_details=re.sub(r"\s+"," ",buyer_details)[:1800]
         current_details=re.sub(r"\s+"," ",reply_body)[:700]
