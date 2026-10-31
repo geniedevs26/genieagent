@@ -266,7 +266,6 @@ def scope_intake_reply_text(lead, subject, body):
         +next_step+"\n\n"
         "I will review the information and confirm whether the work fits my services. "
         "No price, delivery date, payment term, agreement or project commitment is made by this email.\n\n"
-        "Kind regards,\nSiva Satya Prasad\nGenieDevs"
     )
 
 
