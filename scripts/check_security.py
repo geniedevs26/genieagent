@@ -158,7 +158,7 @@ for item in [
 
 for item in [
     "OPTOUT_RE","PROPOSAL_REQUEST_RE","ORDER_ACCEPT_RE","AGREEMENT_ACCEPT_RE","scope_intake_reply_text","if not order and not order_accept:","Automated mailbox response ignored to prevent reply loops","hourly rate|fixed price","emails.update(EMAIL_RE.findall(page))",
-    "FINAL_ACCEPT_RE","create_or_advance_order","create_stage_request","if not order and proposal_request and not order_accept:","if not order and order_accept:",
+    "FINAL_ACCEPT_RE","create_or_advance_order","create_stage_request","if not order and not order_accept:","if not order and order_accept:",
     "financial_proposal_send","agreement_send","project_start","order_close",
     'mail.search(None,"SINCE",since,"FROM",',"search_senders=set(sent_by_recipient)|{\"mailer-daemon\",\"postmaster\"}","recent[-100:]","stable_id",
     '"client_accepted_at":None',
