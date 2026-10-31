@@ -581,7 +581,7 @@ def main():
         emails={e.lower().strip(".,;:") for e in emails if EMAIL_RE.fullmatch(e.lower().strip(".,;:")) and not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com","noreply","no-reply"])}
         email=sorted(emails)[0] if emails else ""
         evidence_excerpt=""
-        contact_verified=bool(email)
+        contact_verified=bool(email or contact_form_verified or reddit_verified)
         if not on_page_intent:
             outcome="no_explicit_paid_business_request"
             next_check=now+timedelta(days=14)
