@@ -17,39 +17,48 @@ export async function onRequestGet({ request }) {
     });
   }
 
-  const upstreamUrl = `https://www.reddit.com/r/${subreddit}/new/.rss?limit=100`;
+  const rssUrl = `https://www.reddit.com/r/${subreddit}/new/.rss?limit=20`;
+  const converterUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
   try {
-    const upstream = await fetch(upstreamUrl, {
-      headers: {
-        "Accept": "application/atom+xml, application/xml;q=0.9, text/xml;q=0.8",
-        "User-Agent": "Mozilla/5.0 (compatible; GenieAgentLeadResearch/1.0; +https://genieagent.pages.dev/)",
-      },
+    const upstream = await fetch(converterUrl, {
+      headers: { "Accept": "application/json" },
       redirect: "follow",
     });
     if (!upstream.ok) {
-      return new Response(`Reddit feed unavailable (HTTP ${upstream.status})`, {
+      return new Response(`Public feed converter unavailable (HTTP ${upstream.status})`, {
         status: 502,
         headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
       });
     }
-    const xml = await upstream.text();
-    if (!xml.includes("<feed") || xml.length > 5_000_000) {
-      return new Response("Invalid or oversized feed response", {
+    const data = await upstream.json();
+    if (data?.status !== "ok" || !Array.isArray(data.items)) {
+      return new Response("Public feed conversion failed", {
         status: 502,
         headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
       });
     }
-    return new Response(xml, {
+    const safe = {
+      status: "ok",
+      feed: { title: String(data.feed?.title || `r/${subreddit}`), url: rssUrl },
+      items: data.items.slice(0, 10).map((item) => ({
+        title: String(item.title || "").slice(0, 500),
+        link: String(item.link || "").slice(0, 2000),
+        pubDate: String(item.pubDate || "").slice(0, 80),
+        author: String(item.author || "").slice(0, 160),
+        content: String(item.content || item.description || "").slice(0, 30000),
+      })),
+    };
+    return new Response(JSON.stringify(safe), {
       status: 200,
       headers: {
-        "Content-Type": "application/atom+xml; charset=utf-8",
+        "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": "public, max-age=120, s-maxage=120",
         "X-Content-Type-Options": "nosniff",
         "Access-Control-Allow-Origin": "*",
       },
     });
   } catch {
-    return new Response("Reddit feed request failed", {
+    return new Response("Public feed request failed", {
       status: 502,
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
     });
