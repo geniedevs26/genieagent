@@ -315,7 +315,8 @@ def main():
     checked_urls=set()
     seen_records=[]
     candidates=[]
-    # Inspect substantially more source pages each run; strict qualification still happens on-page.\n    max_checks_per_run=100
+    # Inspect substantially more source pages each run; strict qualification still happens on-page.
+    max_checks_per_run=100
     for title,url,snippet,provider in discovered:
         if stats["pages_checked"]>=max_checks_per_run or len(candidates)>=50: break
         domain=host(url)
