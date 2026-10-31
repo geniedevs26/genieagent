@@ -31,9 +31,9 @@ def get_json(url):
         return json.loads(response.read().decode("utf-8", "replace"))
 
 def clean_html(s):
-    s = re.sub(r"(?is)<(script|style).*?>.*?</\\1>", " ", s or "")
+    s = re.sub(r"(?is)<(script|style).*?>.*?</\1>", " ", s or "")
     s = re.sub(r"(?s)<[^>]+>", " ", s)
-    return re.sub(r"\\s+", " ", s).strip()
+    return re.sub(r"\s+", " ", s).strip()
 
 def match_skills(title, description, tags):
     hay = (title + " " + description + " " + " ".join(tags or [])).lower()
