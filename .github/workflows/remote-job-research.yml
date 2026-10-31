@@ -1,0 +1,37 @@
+name: Remote job discovery
+
+on:
+  push:
+    paths:
+      - 'scripts/remote_job_research.py'
+      - '.github/workflows/remote-job-research.yml'
+      - 'supabase/migrations/**'
+  schedule:
+    - cron: "37 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remote-job-discovery
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile and validate remote job researcher
+        run: python -m py_compile scripts/remote_job_research.py
+      - name: Fetch current remote jobs and sync to private dashboard
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
+        run: python scripts/remote_job_research.py
