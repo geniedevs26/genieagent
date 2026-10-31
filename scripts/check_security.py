@@ -119,7 +119,7 @@ for item in [
 
 for item in [
     'item.get("status") in ("Qualified lead", "Potential lead")',
-    'item.get("needStage") == "Client need confirmed"',
+    'item.get("needStage") in ("Client need confirmed", "Buyer request found — budget unconfirmed")',
     'item.get("clientNeedConfirmed") == "Yes"',
     'item.get("contactVerified") == "Yes"',
     '"lead_status": "qualified" if item.get("paidSignal") == "Yes" else "research"',
