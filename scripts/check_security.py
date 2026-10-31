@@ -14,6 +14,7 @@ headers=(ROOT/"_headers").read_text(encoding="utf-8")
 index=(ROOT/"index.html").read_text(encoding="utf-8")
 workflow=(ROOT/".github/workflows/daily-lead-research.yml").read_text(encoding="utf-8")
 research=(ROOT/"scripts/lead_research.py").read_text(encoding="utf-8")
+remote_jobs=(ROOT/"scripts/remote_job_research.py").read_text(encoding="utf-8")
 sync=(ROOT/"scripts/sync_candidates_supabase.py").read_text(encoding="utf-8")
 outreach=(ROOT/"scripts/auto_outreach.py").read_text(encoding="utf-8")
 inbox=(ROOT/"scripts/inbox_monitor.py").read_text(encoding="utf-8")
@@ -34,6 +35,9 @@ for item in [
 
 for item in [
     "id=\"researchPageRecords\"",
+    "id=\"remoteJobsPanel\"",
+    "async function loadRemoteJobs()",
+    "data-view=\"jobs\"",
     "async function loadResearchPages()",
     "id=\"lastRunSummary\"",
     "AUTO_OUTREACH_ENABLED",
@@ -63,6 +67,21 @@ for item in [
 ]:
     if item not in index:
         fail(f"missing expected UI safety/audit gate: {item}")
+
+for item in [
+    "https://remotive.com/api/remote-jobs?limit=500",
+    "https://www.arbeitnow.com/api/job-board-api",
+    "https://remoteok.com/api",
+    "def location_eligibility(",
+    "Worldwide — India eligible",
+    "Not India eligible",
+    "job_opportunities?on_conflict=owner_id,source_name,source_job_id",
+    "Remote job discovery:",
+]:
+    if item not in remote_jobs:
+        fail(f"missing remote job discovery/sync requirement: {item}")
+if "python scripts/remote_job_research.py" not in workflow:
+    fail("hourly workflow must invoke remote job discovery")
 
 if not re.search(r"(?m)^\s*max_checks_per_run\s*=\s*300\s*$", research):
     fail("research page-check limit must be an executable assignment, not part of a comment")
@@ -199,6 +218,6 @@ if 'PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"' not in outreach:
 if 'NON_BUYER_PUBLISHERS = {"hubspot.com"}' not in outreach:
     fail("known non-buyer publisher block missing")
 
-print("PASS: authenticated CRM, expanded persistent lead research, direct-buyer qualification, bounded AI email replies, owner-controlled outbound email, opt-out/bounce suppression, and per-stage owner approval gates.")
+print("PASS: authenticated CRM, direct-buyer research, remote job discovery, private job sync, owner-controlled outreach, and per-stage approval gates.")
 
 # Regression policy is maintained alongside the research-first qualification workflow.
