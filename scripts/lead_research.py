@@ -144,7 +144,7 @@ INTENT = re.compile(
     r"designer needed|writer needed|translator needed|website redesign project",
     re.I
 )
-PAID_SIGNAL = re.compile(r"\b(?:paid project|paid work|budget(?:ed)?|project budget|hiring|looking to hire|hire|contract(?:or)?|commission|compensation|rate|quote|request for quote|payment|pay for|fee|funded)\b", re.I)
+PAID_SIGNAL = re.compile(r"\b(?:paid project|paid work|budget(?:ed)?|project budget|commission|compensation|rate|quote|request for quote|payment|pay for|fee|funded)\b", re.I)
 UNPAID_SIGNAL = re.compile(r"\b(?:unpaid|volunteer|equity only|no budget|not paid|free work)\b", re.I)
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download|what is an? |how to create|how to build|step-by-step|ultimate guide|rfp template|proposal template|blog post|case study|\bblog\b|\barticle\b|\bresources?\b|\bwhitepaper\b|\bwebinar\b|\bpress release\b|\bportfolio\b|\bjob description\b|\bcareers?\b|\bhow it works\b", re.I)
 NON_BUYER_PATH = re.compile(r"/(?:blog|articles?|resources?|learn|academy|guides?|templates?|examples?|news|press|careers?|jobs?|vacancies|positions)(?:/|$)", re.I)
@@ -307,21 +307,24 @@ def discover_social_requests():
                 page="<html><head><title>"+html.escape(handle)+" — public buyer request</title></head><body><main>"+html.escape(body)+"</main></body></html>"
                 SOCIAL_PAGE_CACHE[url]=(page,True,"Public Bluesky post with existing replies; public reply route")
                 found.append(("Bluesky buyer post",url,body[:700],"Bluesky public search API"))
-        hn_url="https://hn.algolia.com/api/v1/search_by_date?"+urllib.parse.urlencode({"query":query,"tags":"comment","hitsPerPage":30})
+        hn_url="https://hn.algolia.com/api/v1/search_by_date?"+urllib.parse.urlencode({"query":query,"tags":"story","hitsPerPage":30})
         raw=get(hn_url,timeout=12,attempts=1)
         if raw:
             try: hits=json.loads(raw).get("hits",[])
             except (ValueError,AttributeError): hits=[]
             for hit in hits:
-                body=html.unescape(re.sub(r"<[^>]+>"," ",hit.get("comment_text") or ""))
+                body=html.unescape(re.sub(r"<[^>]+>"," ",hit.get("story_text") or ""))
                 body=re.sub(r"\s+"," ",body).strip()
+                title=html.unescape((hit.get("title") or "").strip())
                 author=(hit.get("author") or "").strip()
                 item_id=str(hit.get("objectID") or "")
-                if not body or not author or not item_id: continue
+                if not author or not item_id or int(hit.get("num_comments") or 0)<1: continue
+                combined=re.sub(r"\s+"," ",title+" "+body).strip()
+                if not INTENT.search(combined): continue
                 url="https://news.ycombinator.com/item?id="+item_id
-                page="<html><head><title>Hacker News public request</title></head><body><main>"+html.escape(body)+"</main></body></html>"
-                SOCIAL_PAGE_CACHE[url]=(page,True,"Public Hacker News comment with a reply thread")
-                found.append(("Hacker News buyer comment",url,body[:700],"Hacker News Algolia public API"))
+                page="<html><head><title>"+html.escape(title or "Hacker News buyer request")+"</title></head><body><main>"+html.escape(combined)+"</main></body></html>"
+                SOCIAL_PAGE_CACHE[url]=(page,True,"Buyer-authored Hacker News story with an active discussion")
+                found.append((title or "Hacker News buyer request",url,combined[:700],"Hacker News Algolia public story API"))
     unique={item[1]:item for item in found}
     return list(unique.values())
 
@@ -576,7 +579,7 @@ def main():
         emails={e.lower().strip(".,;:") for e in emails if EMAIL_RE.fullmatch(e.lower().strip(".,;:")) and not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com","noreply","no-reply"])}
         email=sorted(emails)[0] if emails else ""
         evidence_excerpt=""
-        contact_verified=bool(email or contact_form_verified or reddit_verified)
+        contact_verified=bool(email)
         if not on_page_intent:
             outcome="no_explicit_paid_business_request"
             next_check=now+timedelta(days=14)
