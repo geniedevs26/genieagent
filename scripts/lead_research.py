@@ -315,7 +315,7 @@ def main():
     checked_urls=set()
     seen_records=[]
     candidates=[]
-    max_checks_per_run=40
+    # Inspect substantially more source pages each run; strict qualification still happens on-page.\n    max_checks_per_run=100
     for title,url,snippet,provider in discovered:
         if stats["pages_checked"]>=max_checks_per_run or len(candidates)>=50: break
         domain=host(url)
@@ -323,7 +323,7 @@ def main():
         if not url.startswith("http") or "." not in domain or is_skipped(domain): continue
         path=urlparse(url).path or "/"
         combined=re.sub(r"\s+"," ",title+" "+snippet)
-        if NON_BUYER_PATH.search(path) or LOW_QUALITY.search(combined) or JOB_LISTING.search(combined): continue
+        # Do not reject a result from its short search snippet: snippets often contain generic words\n        # such as "jobs", "resources" or "portfolio" even when the original page is a paid project.\n        # Apply the stricter unpaid/job/low-quality checks only after fetching the source page.\n        if NON_BUYER_PATH.search(path): continue
         if normalized in checked_urls: continue
         checked_urls.add(normalized)
         if normalized in seen:
