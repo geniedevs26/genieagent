@@ -33,6 +33,15 @@ for item in [
         fail(f"missing security header/directive: {item}")
 
 for item in [
+    "id=\"researchPageRecords\"",
+    "async function loadResearchPages()",
+    "id=\"lastRunSummary\"",
+    "AUTO_OUTREACH_ENABLED",
+]:
+    if item not in index:
+        fail(f"missing expected automation status / research history UI: {item}")
+
+for item in [
     "body:not(.authenticated)>header",
     "x.needStage==='Client need confirmed'",
     "x.clientNeedConfirmed==='Yes'",
