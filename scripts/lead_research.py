@@ -200,23 +200,24 @@ def host(url):
     except Exception: return ""
 
 def discover_reddit_requests():
-    """Read official subreddit RSS feeds; keep only recent buyer-tagged paid requests."""
+    """Read allowlisted public buyer feeds through the Cloudflare RSS converter proxy."""
     found=[]
-    atom="{http://www.w3.org/2005/Atom}"
     for subreddit in REDDIT_SUBREDDITS:
         feed_url=f"https://genieagent.pages.dev/api/reddit-feed?sub={urllib.parse.quote(subreddit)}"
         raw=get(feed_url,timeout=8,attempts=1)
         if not raw: continue
-        try: root=ET.fromstring(raw)
-        except ET.ParseError: continue
-        for entry in root.findall(atom+"entry"):
-            title=(entry.findtext(atom+"title") or "").strip()
-            if not re.search(r"\[\s*HIRING\s*\]",title,re.I): continue
-            link_el=next((x for x in entry.findall(atom+"link") if x.attrib.get("rel","alternate")=="alternate"),None)
-            link=(link_el.attrib.get("href","") if link_el is not None else "")
+        try:
+            data=json.loads(raw)
+        except ValueError:
+            continue
+        if data.get("status")!="ok" or not isinstance(data.get("items"),list):
+            continue
+        for item in data["items"]:
+            title=(item.get("title") or "").strip()
+            if not re.search(r"^\s*(?:\[\s*HIRING\s*\]|🔴\s*HIRING:|HIRING\b)",title,re.I): continue
+            link=(item.get("link") or "").strip()
             if not link.startswith("https://www.reddit.com/"): continue
-            raw_content=entry.findtext(atom+"content") or ""
-            body_html=html.unescape(raw_content)
+            body_html=html.unescape(item.get("content") or "")
             parser=Links()
             try: parser.feed(body_html)
             except Exception: continue
@@ -225,11 +226,10 @@ def discover_reddit_requests():
             if not body_text or REDDIT_ADULT_RE.search(combined): continue
             if not INTENT.search(combined) or not PAID_SIGNAL.search(combined): continue
             if UNPAID_SIGNAL.search(combined) or LOW_QUALITY.search(combined) or JOB_LISTING.search(combined): continue
-            published=entry.findtext(atom+"published") or entry.findtext(atom+"updated") or ""
-            # The RSS feed itself supplies the buyer-authored post text, avoiding blocked per-post JSON endpoints.
+            # The feed supplies buyer-authored text and a public thread URL; the thread's reply lock is not exposed by RSS.
             page="<html><head><title>"+html.escape(title)+"</title></head><body><main>"+body_html+"</main></body></html>"
             key=link.split("?")[0].rstrip("/")
-            REDDIT_POST_CACHE[key]=(page, "Public buyer post found in official subreddit RSS; thread reply availability is not confirmed")
+            REDDIT_POST_CACHE[key]=(page, "Public buyer post found in RSS feed; thread reply availability is not confirmed")
             found.append((title,link,body_text,"Reddit RSS r/"+subreddit))
     return found
 
