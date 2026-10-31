@@ -13,8 +13,8 @@ Owner-only client acquisition automation: persistent public research, automatic 
 3. The page must be on the business's own website and expose a public business email. The research worker checks the contact page, then records the page URL, evidence excerpt, provider and next recheck time in the private research_pages table.
 4. Research cursor state is persistent. Recently checked pages are skipped; fetch failures are retried sooner; non-matching pages are rechecked later. Search therefore progresses beyond the same first 40 results on every run.
 5. Only automatically verified direct-business requirements with a public same-site email enter leads as qualified. Unverified pages and contact-form-only pages are not treated as qualified email leads.
-6. Prospect outreach is explicitly disabled in the scheduled workflow (`AUTO_OUTREACH_ENABLED: false`). No initial prospect email or follow-up is sent. Inbox monitoring runs only when IMAP secrets are configured; SMTP acceptance is never described as confirmed delivery. The owner may enable prospect outreach only after separately authorizing it and configuring compliant sender/inbox credentials.
-7. A client reply requesting a quote/proposal creates a private client-order opportunity and a pending financial-proposal approval. The system does not send a proposal at this point.
+6. The owner has authorized automatic, individually composed first-contact emails and up to three reply-aware follow-ups for verified buyer requests. The scheduled workflow enables this with `AUTO_OUTREACH_ENABLED: true`; it sends only to a public, verified email address, never to a guessed address. Budget-unconfirmed buyer requests can receive a scope/budget discovery inquiry, but are not represented as paid-confirmed work. Inbox monitoring runs before follow-up eligibility; replies, bounces and opt-outs stop inappropriate follow-ups. SMTP acceptance is never described as confirmed delivery.
+7. A buyer reply requesting a quote/proposal creates a private client-order opportunity and a pending financial-proposal approval. Price, payment terms, binding agreement and other financial/legal commitments remain blocked until the owner approves them.
 
 ## Owner approval after client interest
 Every post-interest stage has a separate approval request in the dashboard's Orders & approvals view:
@@ -48,7 +48,7 @@ For inbox reply/bounce, AI email replies and client-stage monitoring:
 - IMAP_PASSWORD
 - Optional IMAP_FOLDER (normally INBOX)
 
-These credentials belong only in GitHub Actions Secrets. Do not paste them into chat or commit them. AUTO_OUTREACH_ENABLED is explicitly false in the workflow. Do not change it to true without the owner explicitly authorizing outbound prospect emails and follow-ups.
+These credentials belong only in GitHub Actions Secrets. Do not paste them into chat or commit them. The owner has authorized automatic prospect inquiries and bounded follow-ups; the workflow sets AUTO_OUTREACH_ENABLED=true. Do not enable calls, payments, binding agreements or financial commitments without the separate required setup and owner approval.
 
 ## Calling
 Automatic AI phone calling is not connected. A compliant PSTN calling route is required to reach ordinary mobile/landline numbers; browser/WebRTC software alone does not provide free PSTN minutes. No genuinely zero-cost provider with verified ongoing India outbound calling has been found, and no paid provider is configured. No call is claimed as placed.
