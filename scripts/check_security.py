@@ -55,6 +55,9 @@ for item in [
     if item not in index:
         fail(f"missing expected UI safety/audit gate: {item}")
 
+if not re.search(r"(?m)^\s*max_checks_per_run\s*=\s*100\s*$", research):
+    fail("research page-check limit must be an executable assignment, not part of a comment")
+
 for item in [
     "direct_probe=DIRECT_INTENT.search(page_text)",
     "JOB_LISTING",
