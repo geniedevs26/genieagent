@@ -469,7 +469,7 @@ def main():
     # Rotate through result pages each hour. Rechecking page 1 forever would
     # skip every URL already seen and never discover older/newly indexed buyers.
     page_offset=datetime.now(timezone.utc).hour % 10
-    stats={"search_page_offset":page_offset,"queries":0,"search_results":0,"empty_searches":0,"pages_checked":0,"pages_skipped_seen":0,"page_failures":0,"qualified_pages":0,"new_candidates":0}
+    stats={"search_page_offset":page_offset,"queries":0,"search_results":0,"empty_searches":0,"pages_checked":0,"pages_skipped_seen":0,"page_failures":0,"qualified_pages":0,"potential_pages":0,"new_candidates":0}
     discovered=[]
     reddit_results=discover_reddit_requests()
     stats["reddit_buyer_posts_found"]=len(reddit_results)
@@ -540,11 +540,18 @@ def main():
         direct_probe=DIRECT_INTENT.search(page_text)
         if reddit_verified and re.search(r"\[(?:hiring|paid)\]",page_text[:500],re.I):
             direct_probe=True
-        on_page_intent=bool(intent_probe and paid_probe and direct_probe
+        paid_request=bool(intent_probe and paid_probe and direct_probe
             and abs(intent_probe.start()-paid_probe.start())<=600
             and not UNPAID_SIGNAL.search(page_text[:12000])
             and not LOW_QUALITY.search(page_text[:12000])
             and not JOB_LISTING.search(page_text[:12000]))
+        # Public buyer requests without a stated budget are retained as research prospects,
+        # never mislabeled as paid-confirmed leads and never eligible for automatic outreach.
+        potential_request=bool(reddit_verified and intent_probe and direct_probe and not paid_probe
+            and not UNPAID_SIGNAL.search(page_text[:12000])
+            and not LOW_QUALITY.search(page_text[:12000])
+            and not JOB_LISTING.search(page_text[:12000]))
+        on_page_intent=paid_request or potential_request
         emails=set(EMAIL_RE.findall(page_text))
         phone=extract_public_phone(page_text,parser.links)
         phone_source=url if phone else ""
@@ -574,9 +581,10 @@ def main():
             outcome="contact_route_not_verified"
             next_check=now+timedelta(days=7)
         else:
-            outcome="qualified_public_request"
-            next_check=now+timedelta(days=90)
-            stats["qualified_pages"]+=1
+            outcome="qualified_public_request" if paid_request else "potential_buyer_request"
+            next_check=now+timedelta(days=90 if paid_request else 7)
+            if paid_request: stats["qualified_pages"]+=1
+            else: stats["potential_pages"]+=1
             intent_match=INTENT.search(page_text)
             paid_match=PAID_SIGNAL.search(page_text)
             evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else page_text[:350]
@@ -584,17 +592,17 @@ def main():
             page_title=re.search(r"<title[^>]*>(.*?)</title>",page,re.I|re.S)
             company=html.unescape(re.sub(r"<[^>]+>"," ",page_title.group(1))).strip() if page_title else title
             company=re.sub(r"\s+"," ",company).split(" | ")[0].split(" — ")[0][:180] or title[:180]
-            evidence="Direct requirement: "+evidence_excerpt[:350]+" | Paid signal: "+paid_excerpt[:180]
+            evidence="Direct requirement: "+evidence_excerpt[:350]+(" | Paid signal: "+paid_excerpt[:180] if paid_request else " | Buyer budget/payment not stated; verify before quoting.")
             candidates.append({
                 "company":company,"country":country_for(url,page_text),"contact":"","contact_url":contact_url or url,
-                "email":email,"phone":phone,"phone_source":phone_source,"paidSignal":"Yes","website":url,"source":url,"discovery_method":provider,
+                "email":email,"phone":phone,"phone_source":phone_source,"paidSignal":"Yes" if paid_request else "Unconfirmed","website":url,"source":url,"discovery_method":provider,
                 "contactMethod": "Public email" if email else ("Public contact form" if contact_form_verified else "Public buyer-post thread"),
-                "service":service_for(evidence_excerpt+" "+paid_excerpt),"status":"Qualified lead",
+                "service":service_for(evidence_excerpt+" "+paid_excerpt),"status":"Qualified lead" if paid_request else "Potential lead",
                 "evidence":evidence,
-                "notes":"Automatically qualified from a buyer-authored public source: paid project requirement and public contact route. For Reddit threads, confirm replies are open before outreach. Client acceptance is not guaranteed.",
-                "needStage":"Client need confirmed","contactVerified":"Yes","clientNeedConfirmed":"Yes",
+                "notes":"Buyer-authored request with a public reply path. Budget/payment is unconfirmed; owner must verify scope and payment before treating it as a paid project." if not paid_request else "Buyer-authored public paid-project request with a public contact route. Client acceptance is not guaranteed.",
+                "needStage":"Client need confirmed" if paid_request else "Buyer request found — budget unconfirmed","contactVerified":"Yes","clientNeedConfirmed":"Yes",
                 "needEvidenceUrl":url,"financialApproved":"No","discovered_at":now.isoformat(),
-                "contactVerificationMethod": contact_method or ("Public email displayed on the source website" if email else "Public contact form verified on source website" if contact_form_verified else "Public buyer post found; thread reply availability is not confirmed")
+                "contactVerificationMethod": contact_method or ("Public email displayed on the source website" if email else "Public contact form verified on source website" if contact_form_verified else "Public buyer post with existing replies")
             })
         if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"evidence_excerpt":evidence_excerpt[:500],"checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
     if key and owner_id:
