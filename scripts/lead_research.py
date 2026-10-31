@@ -231,7 +231,7 @@ def discover_reddit_requests():
             continue
         for entry in root.findall(atom+"entry"):
             title=(entry.findtext(atom+"title") or "").strip()
-            if not re.search(r"^\\s*(?:\\[\\s*HIRING\\s*\\]|🔴\\s*HIRING:|HIRING\\b)",title,re.I): continue
+            if not re.search(r"^\s*(?:\[\s*HIRING\s*\]|🔴\s*HIRING:|HIRING\b)",title,re.I): continue
             link_el=next((x for x in entry.findall(atom+"link") if x.attrib.get("rel","alternate")=="alternate"),None)
             link=(link_el.attrib.get("href","") if link_el is not None else "")
             if not link.startswith("https://www.reddit.com/"): continue
@@ -240,7 +240,7 @@ def discover_reddit_requests():
             try: parser.feed(body_html)
             except Exception: continue
             body_text=" ".join(parser.text)
-            combined=re.sub(r"\\s+"," ",title+" "+body_text)
+            combined=re.sub(r"\s+"," ",title+" "+body_text)
             if not body_text or REDDIT_ADULT_RE.search(combined): continue
             if not INTENT.search(combined) or not PAID_SIGNAL.search(combined): continue
             if UNPAID_SIGNAL.search(combined) or LOW_QUALITY.search(combined) or JOB_LISTING.search(combined): continue
@@ -417,9 +417,9 @@ def main():
     os.makedirs("data",exist_ok=True)
     key,owner_id=owner_context()
     seen=load_seen_urls(key,owner_id)
-    # Always scan the newest search-result page first; older pages were hiding fresh buyer requests.
-    # Already checked URLs are skipped through the persistent cursor, so each run advances naturally.
-    page_offset=0
+    # Rotate through result pages each hour. Rechecking page 1 forever would
+    # skip every URL already seen and never discover older/newly indexed buyers.
+    page_offset=datetime.now(timezone.utc).hour % 10
     stats={"search_page_offset":page_offset,"queries":0,"search_results":0,"empty_searches":0,"pages_checked":0,"pages_skipped_seen":0,"page_failures":0,"qualified_pages":0,"new_candidates":0}
     discovered=[]
     reddit_results=discover_reddit_requests()
