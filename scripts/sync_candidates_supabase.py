@@ -91,8 +91,7 @@ def main():
             discovery_stats=json.load(stats_file)
     except (OSError,ValueError):
         discovery_stats={}
-    # Only records that passed first-person requirement, paid-signal,
-    # same-site public email and source-evidence checks enter the qualified CRM.
+    # Only records that passed first-person paid-request and usable public contact-route checks enter the private CRM.
     candidates = [
         item for item in all_rows
         if item.get("status") == "Qualified lead"
@@ -180,7 +179,7 @@ def main():
             "service": item.get("service") or "Other / needs confirmation",
             "status": "Ready",
             "evidence": item.get("evidence") or "",
-            "notes": "Automatically qualified from the business own public page: first-person requirement, nearby paid/contract signal and public contact email. SMTP delivery and client acceptance are still unverified.",
+            "notes": "Automatically qualified from a buyer-authored public source: first-person paid-project requirement and verified public contact route. SMTP delivery and client acceptance remain unverified.",
             "needStage": "Client need confirmed",
             "contactVerified": "Yes",
             "clientNeedConfirmed": "Yes",
