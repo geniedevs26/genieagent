@@ -13,6 +13,7 @@ def fail(message: str) -> None:
 headers=(ROOT/"_headers").read_text(encoding="utf-8")
 index=(ROOT/"index.html").read_text(encoding="utf-8")
 workflow=(ROOT/".github/workflows/daily-lead-research.yml").read_text(encoding="utf-8")
+job_workflow=(ROOT/".github/workflows/remote-job-research.yml").read_text(encoding="utf-8")
 research=(ROOT/"scripts/lead_research.py").read_text(encoding="utf-8")
 remote_jobs=(ROOT/"scripts/remote_job_research.py").read_text(encoding="utf-8")
 sync=(ROOT/"scripts/sync_candidates_supabase.py").read_text(encoding="utf-8")
@@ -80,7 +81,7 @@ for item in [
 ]:
     if item not in remote_jobs:
         fail(f"missing remote job discovery/sync requirement: {item}")
-if "python scripts/remote_job_research.py" not in workflow:
+if "python scripts/remote_job_research.py" not in job_workflow:
     fail("hourly workflow must invoke remote job discovery")
 
 if not re.search(r"(?m)^\s*max_checks_per_run\s*=\s*300\s*$", research):
