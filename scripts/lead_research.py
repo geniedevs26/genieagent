@@ -427,7 +427,7 @@ def main():
         evidence_excerpt=""
         if not page:
             stats["page_failures"]+=1
-            if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
+            if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"evidence_excerpt":"","checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
             continue
         parser=Links()
         try: parser.feed(page)
@@ -499,7 +499,7 @@ def main():
                 "needEvidenceUrl":url,"financialApproved":"No","discovered_at":now.isoformat(),
                 "contactVerificationMethod": contact_method or ("Public email displayed on the source website" if email else "Public contact form verified on source website" if contact_form_verified else "Public buyer post found; thread reply availability is not confirmed")
             })
-        if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"evidence_excerpt":evidence_excerpt[:500] or None,"checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
+        if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"evidence_excerpt":evidence_excerpt[:500],"checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
     if key and owner_id:
         save_seen_pages(key,seen_records)
     cols=["company","country","contact","contact_url","email","contactMethod","paidSignal","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at","contactVerificationMethod","phone","phone_source"]
