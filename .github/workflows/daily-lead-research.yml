@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'scripts/lead_research.py'
+      - 'scripts/remote_job_research.py'
       - 'scripts/sync_candidates_supabase.py'
       - 'scripts/auto_outreach.py'
       - 'scripts/inbox_monitor.py'
@@ -38,7 +39,7 @@ jobs:
           python-version: "3.12"
       - name: Run security and automation regression checks
         run: |
-          python -m py_compile scripts/lead_research.py scripts/sync_candidates_supabase.py scripts/auto_outreach.py scripts/inbox_monitor.py scripts/execute_approved_actions.py scripts/check_security.py
+          python -m py_compile scripts/remote_job_research.py scripts/lead_research.py scripts/sync_candidates_supabase.py scripts/auto_outreach.py scripts/inbox_monitor.py scripts/execute_approved_actions.py scripts/check_security.py
           python scripts/check_security.py
       - name: Discover and verify public business requirements (persistent research cursor)
         env:
@@ -50,6 +51,11 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
         run: python scripts/sync_candidates_supabase.py
+      - name: Discover current worldwide remote jobs and sync to private Jobs dashboard
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
+        run: python scripts/remote_job_research.py
       - name: Monitor replies, bounces and guarded AI email responses before any follow-up
         timeout-minutes: 10
         env:
