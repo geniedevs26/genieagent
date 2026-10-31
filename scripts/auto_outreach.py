@@ -256,6 +256,7 @@ def main():
                 continue
             if (not email or email.lower() in suppressed or payload.get("contactVerified")!="Yes"
                     or payload.get("clientNeedConfirmed")!="Yes" or not payload.get("needEvidenceUrl")
+                    or payload.get("paidSignal")!="Yes"
                     or payload.get("status") in ("Opted out","Not interested")):
                 skipped+=1
                 continue
