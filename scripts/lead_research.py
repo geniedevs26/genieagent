@@ -106,7 +106,7 @@ QUERIES = [
     'site:reddit.com/r/forhire "budget" "web app" hiring',
 ]
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
-REDDIT_SUBREDDITS = ("forhire","FreelanceIndia","DoneDirtCheap","WordpressJobs","DesignJobs","AndroidJobs")
+REDDIT_FEEDS = ("forhire-web","forhire-website","forhire-chatbot","forhire-automation","forhire-excel","freelanceindia-web","freelanceindia-chatbot","done-dirt-cheap-web","wordpress-jobs","design-jobs-web","android-jobs-app")
 REDDIT_POST_CACHE = {}
 REDDIT_ADULT_RE = re.compile(r"\b(?:nsfw|adult content|onlyfans|porn|escort|sex work|18\+)\b", re.I)
 SKIP_DOMAINS = {
@@ -203,8 +203,8 @@ def discover_reddit_requests():
     """Read allowlisted public buyer RSS feeds through the Cloudflare relay."""
     found=[]
     atom="{http://www.w3.org/2005/Atom}"
-    for subreddit in REDDIT_SUBREDDITS:
-        feed_url=f"https://genieagent.pages.dev/api/reddit-feed?sub={urllib.parse.quote(subreddit)}"
+    for feed_key in REDDIT_FEEDS:
+        feed_url=f"https://genieagent.pages.dev/api/reddit-feed?feed={urllib.parse.quote(feed_key)}"
         raw=get(feed_url,timeout=10,attempts=1)
         if not raw: continue
         try: root=ET.fromstring(raw)
@@ -228,7 +228,7 @@ def discover_reddit_requests():
             page="<html><head><title>"+html.escape(title)+"</title></head><body><main>"+body_html+"</main></body></html>"
             key=link.split("?")[0].rstrip("/")
             REDDIT_POST_CACHE[key]=(page, "Public buyer post found in RSS feed; thread reply availability is not confirmed")
-            found.append((title,link,body_text,"Reddit RSS r/"+subreddit))
+            found.append((title,link,body_text,"Reddit buyer RSS "+feed_key))
     return found
 
 def fetch_reddit_post(url):
