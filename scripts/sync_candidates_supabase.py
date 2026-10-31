@@ -94,13 +94,13 @@ def main():
     # Only records that passed first-person paid-request and usable public contact-route checks enter the private CRM.
     candidates = [
         item for item in all_rows
-        if item.get("status") == "Qualified lead"
-        and item.get("needStage") == "Client need confirmed"
+        if item.get("status") in ("Qualified lead", "Potential lead")
+        and item.get("needStage") in ("Client need confirmed", "Buyer request found — budget unconfirmed")
         and item.get("clientNeedConfirmed") == "Yes"
         and item.get("contactVerified") == "Yes"
         and (item.get("needEvidenceUrl") or "").startswith("http")
         and (item.get("evidence") or "").strip()
-        and item.get("paidSignal") == "Yes"
+        and item.get("paidSignal") in ("Yes", "Unconfirmed")
         and bool(item.get("email") or item.get("contact_url"))
     ]
     run_id = str(uuid.uuid4())
@@ -111,7 +111,7 @@ def main():
         method="POST",
         payload={"id": run_id, "owner_id": owner_id, "workflow_name": "daily_confirmed_lead_research",
                  "run_status": "running", "started_at": started,
-                 "summary": "Hourly research started; unseen pages are checked and only verified direct-business requirements are qualified."},
+                 "summary": "Hourly research started; confirmed paid requests and separate budget-unconfirmed buyer prospects are checked."},
         prefer="return=minimal",
     )
     request_json(
@@ -119,7 +119,7 @@ def main():
         key, method="POST",
         payload={"owner_id": owner_id, "event_type": "research_started", "entity_table": "agent_runs",
                  "entity_id": run_id, "event_status": "running",
-                 "summary": "Hourly verified direct-business lead research started",
+                 "summary": "Hourly buyer-request and potential-prospect research started",
                  "details": {"workflow": "daily_confirmed_lead_research", "source_rows": len(all_rows)}},
         prefer="return=minimal",
     )
@@ -177,10 +177,10 @@ def main():
             "website": item.get("website") or "",
             "source": item.get("source") or item.get("website") or "",
             "service": item.get("service") or "Other / needs confirmation",
-            "status": "Ready",
+            "status": "Ready" if item.get("paidSignal") == "Yes" else "Researching",
             "evidence": item.get("evidence") or "",
-            "notes": "Automatically qualified from a buyer-authored public source: first-person paid-project requirement and verified public contact route. SMTP delivery and client acceptance remain unverified.",
-            "needStage": "Client need confirmed",
+            "notes": item.get("notes") or "Buyer-authored public request; confirm payment and scope before any proposal.",
+            "needStage": item.get("needStage") or "Buyer request found — budget unconfirmed",
             "contactVerified": "Yes",
             "clientNeedConfirmed": "Yes",
             "needEvidenceUrl": item.get("needEvidenceUrl") or item.get("source") or "",
@@ -188,7 +188,7 @@ def main():
             "lastVerifiedAt": now,
             "financialApproved": "No",
             "scopeConfirmed": "No",
-            "clientBudgetConfirmed": "No",
+            "clientBudgetConfirmed": "Yes" if item.get("paidSignal") == "Yes" else "No",
             "externalCostsVerified": "No",
             "paymentTerms": "",
             "costEvidenceUrl": "",
@@ -201,7 +201,7 @@ def main():
             "dealCurrency": "USD",
             "created": now[:10],
             "updated": now[:10],
-            "activity": prior_activity + [{"date": now[:10], "text": "Automatically re-verified as a direct paid buyer requirement with a public contact route. SMTP delivery and client acceptance remain unverified."}],
+            "activity": prior_activity + [{"date": now[:10], "text": "Re-verified buyer request with a public contact route. Paid budget is confirmed only when the source explicitly states it; no outreach was sent."}],
         })
         lead_row={
             "id": lead_id,
@@ -216,7 +216,7 @@ def main():
             "contact_form_url": item.get("contact_url") or None,
             "last_verified_at": now,
             "source_name": item.get("discovery_method") or "public_web_search",
-            "lead_status": "qualified",
+            "lead_status": "qualified" if item.get("paidSignal") == "Yes" else "research",
             "payload": payload,
             "updated_at": now,
         }
@@ -224,7 +224,7 @@ def main():
             requalified_updates.append(lead_row)
         else:
             rows.append(lead_row)
-            known_by_url[website] = {"id":lead_id,"lead_status":"qualified","payload":payload,"website_url":website}
+            known_by_url[website] = {"id":lead_id,"lead_status":lead_row["lead_status"],"payload":payload,"website_url":website}
 
     if rows:
         request_json(
