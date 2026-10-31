@@ -69,11 +69,11 @@ jobs:
           CLOUDFLARE_AI_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_AI_ACCOUNT_ID }}
           CLOUDFLARE_AI_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_API_TOKEN }}
         run: python scripts/inbox_monitor.py
-      - name: Keep outbound prospect emails disabled until each message is owner-approved
+      - name: Send automatically qualified buyer inquiries and bounded follow-ups under owner's standing authorization
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
-          AUTO_OUTREACH_ENABLED: "false"
+          AUTO_OUTREACH_ENABLED: "true"
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
