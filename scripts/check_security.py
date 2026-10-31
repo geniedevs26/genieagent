@@ -215,6 +215,10 @@ if 'AUTO_OUTREACH_ENABLED: "true"' not in workflow:
     fail("owner-authorized automatic prospect outreach must be enabled")
 if '"lead_status":"eq.qualified"' not in outreach:
     fail("automatic outreach must process only paid-confirmed qualified leads")
+if 'payload.get("paidSignal")!="Yes"' not in outreach:
+    fail("initial outreach and follow-ups must require explicit paid intent")
+if 'return ""' not in research or '"service":matched_service' not in research:
+    fail("requests outside supported service categories must be excluded")
 if "emails.update(EMAIL_RE.findall(page))" not in research:
     fail("research must extract public email addresses from page markup")
 if "if reddit_verified and intent_probe:" not in research:
