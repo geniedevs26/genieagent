@@ -169,8 +169,8 @@ for path in ROOT.rglob("*"):
         if re.search(pattern,content):
             fail(f"possible secret material detected in {path.relative_to(ROOT)}")
 
-if 'AUTO_OUTREACH_ENABLED: "true"' not in workflow:
-    fail("verified initial outreach and controlled follow-up must be enabled")
+if 'AUTO_OUTREACH_ENABLED: "false"' not in workflow:
+    fail("outbound prospect emails must remain disabled until each message is owner-approved")
 if "python scripts/execute_approved_actions.py" not in workflow:
     fail("hourly workflow must invoke the owner-approved stage executor")
 if workflow.index("python scripts/inbox_monitor.py") > workflow.index("python scripts/auto_outreach.py"):
@@ -182,6 +182,6 @@ if 'PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"' not in outreach:
 if 'NON_BUYER_PUBLISHERS = {"hubspot.com"}' not in outreach:
     fail("known non-buyer publisher block missing")
 
-print("PASS: authenticated CRM, persistent research cursor, direct-buyer qualification, bounded AI email replies, automatic outreach/follow-up, opt-out/bounce suppression, and per-stage owner approval gates.")
+print("PASS: authenticated CRM, expanded persistent lead research, direct-buyer qualification, bounded AI email replies, owner-controlled outbound email, opt-out/bounce suppression, and per-stage owner approval gates.")
 
 # Regression policy is maintained alongside the research-first qualification workflow.
