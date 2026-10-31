@@ -462,7 +462,8 @@ def service_for(text):
     if any(k in t for k in ("seo","content writer","technical writer","blog article")): return "Content / SEO / technical writing"
     if any(k in t for k in ("logo","graphic designer","thumbnail","banner")): return "Graphic design / digital assets"
     if any(k in t for k in ("automation","workflow")): return "Business workflow automation"
-    return "Website / web application development"
+    if any(k in t for k in ("website","web developer","web designer","web application","web app","wordpress","shopify","landing page","website redesign")): return "Website / web application development"
+    return ""
 
 
 def main():
@@ -597,6 +598,12 @@ def main():
             paid_match=PAID_SIGNAL.search(page_text)
             evidence_excerpt=page_text[max(0,intent_match.start()-180):min(len(page_text),intent_match.end()+300)] if intent_match else page_text[:350]
             paid_excerpt=page_text[max(0,paid_match.start()-100):min(len(page_text),paid_match.end()+180)] if paid_match else ""
+            matched_service=service_for(evidence_excerpt+" "+paid_excerpt)
+            if not matched_service:
+                outcome="unsupported_service"
+                next_check=now+timedelta(days=30)
+                if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"evidence_excerpt":"","checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
+                continue
             page_title=re.search(r"<title[^>]*>(.*?)</title>",page,re.I|re.S)
             company=html.unescape(re.sub(r"<[^>]+>"," ",page_title.group(1))).strip() if page_title else title
             company=re.sub(r"\s+"," ",company).split(" | ")[0].split(" — ")[0][:180] or title[:180]
@@ -605,7 +612,7 @@ def main():
                 "company":company,"country":country_for(url,page_text),"contact":"","contact_url":contact_url or url,
                 "email":email,"phone":phone,"phone_source":phone_source,"paidSignal":"Yes" if paid_request else "Unconfirmed","website":url,"source":url,"discovery_method":provider,
                 "contactMethod": "Public email" if email else ("Public contact form" if contact_form_verified else "Public buyer-post thread"),
-                "service":service_for(evidence_excerpt+" "+paid_excerpt),"status":"Qualified lead" if paid_request else "Potential lead",
+                "service":matched_service,"status":"Qualified lead" if paid_request else "Potential lead",
                 "evidence":evidence,
                 "notes":"Buyer-authored request with a public reply path. Budget/payment is unconfirmed; owner must verify scope and payment before treating it as a paid project." if not paid_request else "Buyer-authored public paid-project request with a public contact route. Client acceptance is not guaranteed.",
                 "needStage":"Client need confirmed" if paid_request else "Buyer request found — budget unconfirmed","contactVerified":"Yes","clientNeedConfirmed":"Yes",
