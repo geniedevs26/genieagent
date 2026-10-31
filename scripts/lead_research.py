@@ -200,18 +200,38 @@ def host(url):
     except Exception: return ""
 
 def discover_reddit_requests():
-    """Read allowlisted public buyer RSS feeds through the Cloudflare relay."""
+    """Read allowlisted public Reddit RSS feeds directly; no third-party CORS proxy."""
     found=[]
     atom="{http://www.w3.org/2005/Atom}"
+    checked=0
+    failures=0
     for feed_key in REDDIT_FEEDS:
-        feed_url=f"https://genieagent.pages.dev/api/reddit-feed?feed={urllib.parse.quote(feed_key)}"
+        subreddit, query = {
+            "forhire-web": ("forhire", "title:Hiring web developer"),
+            "forhire-website": ("forhire", "title:Hiring website"),
+            "forhire-chatbot": ("forhire", "title:Hiring chatbot"),
+            "forhire-automation": ("forhire", "title:Hiring automation"),
+            "forhire-excel": ("forhire", "title:Hiring Excel"),
+            "freelanceindia-web": ("FreelanceIndia", "title:Hiring website developer"),
+            "freelanceindia-chatbot": ("FreelanceIndia", "title:Hiring chatbot"),
+            "done-dirt-cheap-web": ("DoneDirtCheap", "title:Hiring website"),
+            "wordpress-jobs": ("WordpressJobs", "title:Hiring WordPress"),
+            "design-jobs-web": ("DesignJobs", "title:Hiring website design"),
+            "android-jobs-app": ("AndroidJobs", "title:Hiring Android app"),
+        }[feed_key]
+        feed_url=f"https://www.reddit.com/r/{subreddit}/search.rss?q={urllib.parse.quote(query)}&restrict_sr=1&sort=new&t=month"
         raw=get(feed_url,timeout=10,attempts=1)
-        if not raw: continue
+        checked+=1
+        if not raw:
+            failures+=1
+            continue
         try: root=ET.fromstring(raw)
-        except ET.ParseError: continue
+        except ET.ParseError:
+            failures+=1
+            continue
         for entry in root.findall(atom+"entry"):
             title=(entry.findtext(atom+"title") or "").strip()
-            if not re.search(r"^\s*(?:\[\s*HIRING\s*\]|🔴\s*HIRING:|HIRING\b)",title,re.I): continue
+            if not re.search(r"^\\s*(?:\\[\\s*HIRING\\s*\\]|🔴\\s*HIRING:|HIRING\\b)",title,re.I): continue
             link_el=next((x for x in entry.findall(atom+"link") if x.attrib.get("rel","alternate")=="alternate"),None)
             link=(link_el.attrib.get("href","") if link_el is not None else "")
             if not link.startswith("https://www.reddit.com/"): continue
@@ -220,15 +240,15 @@ def discover_reddit_requests():
             try: parser.feed(body_html)
             except Exception: continue
             body_text=" ".join(parser.text)
-            combined=re.sub(r"\s+"," ",title+" "+body_text)
+            combined=re.sub(r"\\s+"," ",title+" "+body_text)
             if not body_text or REDDIT_ADULT_RE.search(combined): continue
             if not INTENT.search(combined) or not PAID_SIGNAL.search(combined): continue
             if UNPAID_SIGNAL.search(combined) or LOW_QUALITY.search(combined) or JOB_LISTING.search(combined): continue
-            # RSS supplies buyer-authored text and a public thread URL; reply-lock status is not exposed by the feed.
             page="<html><head><title>"+html.escape(title)+"</title></head><body><main>"+body_html+"</main></body></html>"
             key=link.split("?")[0].rstrip("/")
-            REDDIT_POST_CACHE[key]=(page, "Public buyer post found in RSS feed; thread reply availability is not confirmed")
+            REDDIT_POST_CACHE[key]=(page, "Public buyer post found in Reddit RSS; verify thread remains open before outreach")
             found.append((title,link,body_text,"Reddit buyer RSS "+feed_key))
+    print(f"Reddit RSS diagnostics: feeds_checked={checked}, feed_failures={failures}, buyer_posts_matched={len(found)}")
     return found
 
 def fetch_reddit_post(url):
