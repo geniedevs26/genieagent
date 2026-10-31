@@ -1,23 +1,31 @@
-const ALLOWED_SUBREDDITS = new Set([
-  "forhire",
-  "FreelanceIndia",
-  "DoneDirtCheap",
-  "WordpressJobs",
-  "DesignJobs",
-  "AndroidJobs",
-]);
+const FEEDS = {
+  "forhire-web": ["forhire", "web developer"],
+  "forhire-website": ["forhire", "website"],
+  "forhire-chatbot": ["forhire", "chatbot"],
+  "forhire-automation": ["forhire", "automation"],
+  "forhire-excel": ["forhire", "Excel"],
+  "freelanceindia-web": ["FreelanceIndia", "website developer"],
+  "freelanceindia-chatbot": ["FreelanceIndia", "chatbot"],
+  "done-dirt-cheap-web": ["DoneDirtCheap", "website"],
+  "wordpress-jobs": ["WordpressJobs", "WordPress"],
+  "design-jobs-web": ["DesignJobs", "website"],
+  "android-jobs-app": ["AndroidJobs", "Android app"],
+};
 
 export async function onRequestGet({ request }) {
   const url = new URL(request.url);
-  const subreddit = url.searchParams.get("sub") || "";
-  if (!ALLOWED_SUBREDDITS.has(subreddit)) {
-    return new Response("Unsupported subreddit", {
+  const feedKey = url.searchParams.get("feed") || "";
+  const feed = FEEDS[feedKey];
+  if (!feed) {
+    return new Response("Unsupported feed", {
       status: 400,
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
     });
   }
 
-  const upstreamUrl = `https://proxy.cors.dev/https://www.reddit.com/r/${subreddit}/new/.rss?limit=20`;
+  const [subreddit, query] = feed;
+  const redditUrl = `https://www.reddit.com/r/${subreddit}/search.rss?q=${encodeURIComponent(query)}&restrict_sr=1&sort=new&t=month`;
+  const upstreamUrl = `https://proxy.cors.dev/${redditUrl}`;
   try {
     const upstream = await fetch(upstreamUrl, {
       headers: { "Accept": "application/atom+xml, application/xml;q=0.9, text/xml;q=0.8" },
