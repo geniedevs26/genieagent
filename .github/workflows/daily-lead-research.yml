@@ -10,6 +10,7 @@ on:
       - 'scripts/execute_approved_actions.py'
       - 'scripts/check_security.py'
       - 'index.html'
+      - 'functions/api/reddit-feed.js'
       - 'supabase/migrations/**'
       - '.github/workflows/daily-lead-research.yml'
   schedule:
