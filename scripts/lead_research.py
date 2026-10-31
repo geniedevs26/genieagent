@@ -363,11 +363,34 @@ def load_seen_urls(key, owner_id):
 
 def save_seen_pages(key, records):
     if not key or not records: return
-    clean=[]
-    for row in records:
-        clean.append({k:v for k,v in row.items() if v is not None})
+    # PostgREST bulk upserts require every object in one JSON array to have
+    # exactly the same keys. Do not drop null-valued keys row-by-row.
+    columns=("owner_id","url","domain","source_name","outcome",
+             "evidence_excerpt","checked_at","next_check_at")
+    clean=[{column: row.get(column) for column in columns} for row in records]
     for start in range(0,len(clean),50):
-        api("/rest/v1/research_pages?on_conflict=owner_id,url",key,"POST",clean[start:start+50],"resolution=merge-duplicates,return=minimal")
+        batch=clean[start:start+50]
+        try:
+            api("/rest/v1/research_pages?on_conflict=owner_id,url",key,"POST",batch,
+                "resolution=merge-duplicates,return=minimal")
+        except RuntimeError as exc:
+            # Preserve the rest of the research run if a single bad row is
+            # rejected; isolate it and continue storing valid cursor records.
+            if len(batch)==1:
+                print("Research cursor row rejected; continuing safely: "+str(exc)[:300])
+                continue
+            midpoint=len(batch)//2
+            for subset in (batch[:midpoint],batch[midpoint:]):
+                try:
+                    api("/rest/v1/research_pages?on_conflict=owner_id,url",key,"POST",subset,
+                        "resolution=merge-duplicates,return=minimal")
+                except RuntimeError:
+                    for row in subset:
+                        try:
+                            api("/rest/v1/research_pages?on_conflict=owner_id,url",key,"POST",[row],
+                                "resolution=merge-duplicates,return=minimal")
+                        except RuntimeError as row_error:
+                            print("Research cursor row rejected; continuing safely: "+str(row_error)[:300])
 
 def country_for(url, text):
     d=host(url)
