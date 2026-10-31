@@ -211,7 +211,7 @@ def main():
     }),key) or []
     daily_limit=2 if len(won)>=10 else DAILY_LIMIT
     leads=api("/rest/v1/leads?"+urllib.parse.urlencode({
-        "owner_id":"eq."+owner_id,"lead_status":"eq.qualified",
+        "owner_id":"eq."+owner_id,"lead_status":"in.(qualified,research)",
         "select":"id,company_name,contact_email,website_url,evidence_summary,evidence_url,service_need,payload",
         "order":"created_at.asc","limit":"1000"
     }),key) or []
