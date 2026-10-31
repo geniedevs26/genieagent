@@ -65,7 +65,7 @@ def normalize(source, raw, ident, title, company, location, employment, salary, 
     tags=tags if isinstance(tags,list) else []
     matches=match_skills(title,desc,tags)
     if not matches or not title or not url: return None
-    if SENIOR.search(title) or EXPERIENCE.search(desc[:12000]) or NON_REMOTE.search(title+" "+location) or BLOCK.search(title+" "+desc[:5000]): return None
+    if SENIOR.search(title) or EXPERIENCE.search(desc[:12000]) or NON_REMOTE.search(title+" "+(location or "")) or BLOCK.search(title+" "+desc[:5000]): return None
     eligibility=location_eligibility(location,remote)
     if eligibility=="Not India eligible": return None
     if "Location restriction" in eligibility: return None
