@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""Sync automatically verified direct-business project requirements to the owner's private Supabase CRM.
+"""Sync verified paid-project buyer requests to the owner's private Supabase CRM.
 
-Required GitHub Actions secrets:
-  SUPABASE_SERVICE_ROLE_KEY
-  GENIE_OWNER_EMAIL
-
-No lead details are committed to this public repository. Only direct first-person requirements with a paid signal, same-site public email and source evidence are synced as qualified leads.
+A usable contact route is either a public business email, verified contact form, or active
+buyer-authored post with replies enabled. No lead details are committed to this public repository.
 """
 import csv
 import json
@@ -103,7 +100,7 @@ def main():
         and (item.get("needEvidenceUrl") or "").startswith("http")
         and (item.get("evidence") or "").strip()
         and item.get("paidSignal") == "Yes"
-        and bool(item.get("email"))
+        and bool(item.get("email") or item.get("contact_url"))
     ]
     run_id = str(uuid.uuid4())
     started = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
@@ -172,6 +169,7 @@ def main():
             "contact": item.get("contact") or "",
             "contact_url": item.get("contact_url") or "",
             "email": item.get("email") or "",
+            "contactMethod": item.get("contactMethod") or ("Public email" if item.get("email") else "Public reply/contact form"),
             "phone": item.get("phone") or "",
             "phoneSource": item.get("phone_source") or "",
             "phoneVerificationMethod": "Published on the business website; not independently verified" if item.get("phone") else "",
@@ -185,7 +183,7 @@ def main():
             "contactVerified": "Yes",
             "clientNeedConfirmed": "Yes",
             "needEvidenceUrl": item.get("needEvidenceUrl") or item.get("source") or "",
-            "contactVerificationMethod": item.get("contactVerificationMethod") or "Public email listed on official business website",
+            "contactVerificationMethod": item.get("contactVerificationMethod") or "Public contact route verified on source page",
             "lastVerifiedAt": now,
             "financialApproved": "No",
             "scopeConfirmed": "No",
@@ -202,7 +200,7 @@ def main():
             "dealCurrency": "USD",
             "created": now[:10],
             "updated": now[:10],
-            "activity": prior_activity + [{"date": now[:10], "text": "Automatically re-verified as a direct paid business requirement with a same-site public email. SMTP delivery and client acceptance remain unverified."}],
+            "activity": prior_activity + [{"date": now[:10], "text": "Automatically re-verified as a direct paid buyer requirement with a public contact route. SMTP delivery and client acceptance remain unverified."}],
         })
         lead_row={
             "id": lead_id,
@@ -242,7 +240,7 @@ def main():
 
     finished = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
     discovery_note = (f" Discovery checked {discovery_stats.get('pages_checked',0)} pages from {discovery_stats.get('search_results',0)} search results across {discovery_stats.get('queries',0)} queries; {discovery_stats.get('page_failures',0)} page fetches failed.")
-    message = f"Hourly run complete: {len(all_rows)} qualified source rows reviewed; {len(candidates)} passed the CRM evidence gate; {len(rows)} new qualified leads inserted; {len(requalified_updates)} existing research records promoted; {len(candidates) - len(rows) - len(requalified_updates)} skipped as duplicates or protected records.{discovery_note}"
+    message = f"Hourly run complete: {len(all_rows)} verified buyer-request rows reviewed; {len(candidates)} passed the CRM evidence gate; {len(rows)} new qualified leads inserted; {len(requalified_updates)} existing research records promoted; {len(candidates) - len(rows) - len(requalified_updates)} skipped as duplicates or protected records.{discovery_note}"
     request_json(
         f"{SUPABASE_URL}/rest/v1/agent_runs?id=eq.{run_id}",
         key, method="PATCH",
