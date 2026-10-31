@@ -129,9 +129,11 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
             item.get("message_excerpt","") for item in prior_buyer_details if isinstance(item,dict)
         )
         all_buyer_details=prior_text+" "+reply_body
-        has_scope=bool(re.search(r"\\b(?:website|web app|mobile app|android app|chatbot|dashboard|spreadsheet|Excel|WordPress|Shopify|deliverables?|features?|pages?|screens?|automation|workflow|design|develop|build|redesign|integrate|translate|clean)\\b",all_buyer_details,re.I))
-        has_budget=bool(re.search(r"(?:[$€£₹]\\s?\\d|\\b(?:USD|EUR|GBP|INR|AUD|CAD)\\s?\\d|\\d[\\d,.]*\\s?(?:USD|EUR|GBP|INR|AUD|CAD)\\b|\\b(?:budget|budgeted|hourly rate|fixed price|per hour)\\b)",all_buyer_details,re.I))
-        has_timing=bool(re.search(r"\\b(?:by|before|within|deadline|timeline|weeks?|months?|days?|urgent|asap|flexible)\\b",all_buyer_details,re.I))
+        detail_lower=all_buyer_details.lower()
+        has_scope=any(term in detail_lower for term in ("website","web app","mobile app","android app","chatbot","dashboard","spreadsheet","excel","wordpress","shopify","deliverable","feature","page","screen","automation","workflow","design","develop","build","redesign","integrate","translate","clean"))
+        has_amount=any(ch.isdigit() for ch in all_buyer_details)
+        has_budget=has_amount and (any(symbol in all_buyer_details for symbol in ("$","€","£","₹")) or any(term in detail_lower for term in ("budget","usd","eur","gbp","inr","aud","cad","hourly rate","fixed price","per hour")))
+        has_timing=any(term in detail_lower for term in ("deadline","timeline","week","month","day","urgent","asap","flexible","by "))
         if not (has_scope and has_budget and has_timing):
             prior_buyer_details.append({
                 "received_at":now,"sender":sender,"subject":subject[:180],
