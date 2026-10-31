@@ -25,9 +25,8 @@ export async function onRequestGet({ request }) {
 
   const [subreddit, query] = feed;
   const redditUrl = `https://www.reddit.com/r/${subreddit}/search.rss?q=${encodeURIComponent(query)}&restrict_sr=1&sort=new&t=month`;
-  const upstreamUrl = `https://proxy.cors.dev/${redditUrl}`;
   try {
-    const upstream = await fetch(upstreamUrl, {
+    const upstream = await fetch(redditUrl, {
       headers: { "Accept": "application/atom+xml, application/xml;q=0.9, text/xml;q=0.8" },
       redirect: "follow",
     });
