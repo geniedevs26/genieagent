@@ -336,8 +336,9 @@ def main():
     os.makedirs("data",exist_ok=True)
     key,owner_id=owner_context()
     seen=load_seen_urls(key,owner_id)
-    # Rotate result pages each hourly run so discovery does not stall on page one.
-    page_offset=datetime.now(timezone.utc).hour % 10
+    # Always scan the newest search-result page first; older pages were hiding fresh buyer requests.
+    # Already checked URLs are skipped through the persistent cursor, so each run advances naturally.
+    page_offset=0
     stats={"search_page_offset":page_offset,"queries":0,"search_results":0,"empty_searches":0,"pages_checked":0,"pages_skipped_seen":0,"page_failures":0,"qualified_pages":0,"new_candidates":0}
     discovered=[]
     for query in QUERIES:
