@@ -213,8 +213,8 @@ for path in ROOT.rglob("*"):
 
 if 'AUTO_OUTREACH_ENABLED: "true"' not in workflow:
     fail("owner-authorized automatic prospect outreach must be enabled")
-if '"lead_status":"in.(qualified,research)"' not in outreach:
-    fail("automatic outreach must process both paid-confirmed leads and budget-unconfirmed buyer prospects")
+if '"lead_status":"eq.qualified"' not in outreach:
+    fail("automatic outreach must process only paid-confirmed qualified leads")
 if "emails.update(EMAIL_RE.findall(page))" not in research:
     fail("research must extract public email addresses from page markup")
 if "if reddit_verified and intent_probe:" not in research:
