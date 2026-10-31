@@ -106,6 +106,9 @@ QUERIES = [
     'site:reddit.com/r/forhire "budget" "web app" hiring',
 ]
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
+REDDIT_SUBREDDITS = ("forhire","FreelanceIndia","DoneDirtCheap","WordpressJobs","DesignJobs","AndroidJobs")
+REDDIT_POST_CACHE = {}
+REDDIT_ADULT_RE = re.compile(r"\b(?:nsfw|adult content|onlyfans|porn|escort|sex work|18\+)\b", re.I)
 SKIP_DOMAINS = {
     "facebook.com","instagram.com","linkedin.com","youtube.com","x.com","twitter.com",
     "tiktok.com","pinterest.com","wikipedia.org","bing.com","microsoft.com",
@@ -196,11 +199,48 @@ def host(url):
     try: return (urlparse(url).hostname or "").lower().removeprefix("www.")
     except Exception: return ""
 
+def discover_reddit_requests():
+    """Read official subreddit RSS feeds; keep only recent buyer-tagged paid requests."""
+    found=[]
+    atom="{http://www.w3.org/2005/Atom}"
+    for subreddit in REDDIT_SUBREDDITS:
+        feed_url=f"https://www.reddit.com/r/{subreddit}/new/.rss?limit=100"
+        raw=get(feed_url,timeout=8,attempts=1)
+        if not raw: continue
+        try: root=ET.fromstring(raw)
+        except ET.ParseError: continue
+        for entry in root.findall(atom+"entry"):
+            title=(entry.findtext(atom+"title") or "").strip()
+            if not re.search(r"\[\s*HIRING\s*\]",title,re.I): continue
+            link_el=next((x for x in entry.findall(atom+"link") if x.attrib.get("rel","alternate")=="alternate"),None)
+            link=(link_el.attrib.get("href","") if link_el is not None else "")
+            if not link.startswith("https://www.reddit.com/"): continue
+            raw_content=entry.findtext(atom+"content") or ""
+            body_html=html.unescape(raw_content)
+            parser=Links()
+            try: parser.feed(body_html)
+            except Exception: continue
+            body_text=" ".join(parser.text)
+            combined=re.sub(r"\s+"," ",title+" "+body_text)
+            if not body_text or REDDIT_ADULT_RE.search(combined): continue
+            if not INTENT.search(combined) or not PAID_SIGNAL.search(combined): continue
+            if UNPAID_SIGNAL.search(combined) or LOW_QUALITY.search(combined) or JOB_LISTING.search(combined): continue
+            published=entry.findtext(atom+"published") or entry.findtext(atom+"updated") or ""
+            # The RSS feed itself supplies the buyer-authored post text, avoiding blocked per-post JSON endpoints.
+            page="<html><head><title>"+html.escape(title)+"</title></head><body><main>"+body_html+"</main></body></html>"
+            key=link.split("?")[0].rstrip("/")
+            REDDIT_POST_CACHE[key]=(page, "Public buyer post found in official subreddit RSS; thread reply availability is not confirmed")
+            found.append((title,link,body_text,"Reddit RSS r/"+subreddit))
+    return found
+
 def fetch_reddit_post(url):
-    """Return buyer-authored Reddit text only when the post is still open for replies."""
+    """Return buyer-authored Reddit text from RSS cache, with JSON as a fallback."""
     clean=url.split("?")[0].rstrip("/")
     if not host(clean).endswith("reddit.com"):
         return "", False, ""
+    if clean in REDDIT_POST_CACHE:
+        page,method=REDDIT_POST_CACHE[clean]
+        return page,True,method
     raw=get(clean+".json?raw_json=1",timeout=8,attempts=1)
     if not raw: return "", False, ""
     try:
@@ -341,6 +381,9 @@ def main():
     page_offset=0
     stats={"search_page_offset":page_offset,"queries":0,"search_results":0,"empty_searches":0,"pages_checked":0,"pages_skipped_seen":0,"page_failures":0,"qualified_pages":0,"new_candidates":0}
     discovered=[]
+    reddit_results=discover_reddit_requests()
+    stats["reddit_buyer_posts_found"]=len(reddit_results)
+    discovered.extend(reddit_results)
     for query in QUERIES:
         stats["queries"]+=1
         results=search(query,page_offset)
@@ -450,13 +493,13 @@ def main():
             candidates.append({
                 "company":company,"country":country_for(url,page_text),"contact":"","contact_url":contact_url or url,
                 "email":email,"phone":phone,"phone_source":phone_source,"paidSignal":"Yes","website":url,"source":url,"discovery_method":provider,
-                "contactMethod": "Public email" if email else ("Public contact form" if contact_form_verified else "Public buyer-post reply"),
+                "contactMethod": "Public email" if email else ("Public contact form" if contact_form_verified else "Public buyer-post thread"),
                 "service":service_for(evidence_excerpt+" "+paid_excerpt),"status":"Qualified lead",
                 "evidence":evidence,
-                "notes":"Automatically qualified from the business's own public page: first-person project requirement, nearby paid/contract signal and a publicly listed contact email. This is not a guarantee of delivery or client acceptance.",
+                "notes":"Automatically qualified from a buyer-authored public source: paid project requirement and public contact route. For Reddit threads, confirm replies are open before outreach. Client acceptance is not guaranteed.",
                 "needStage":"Client need confirmed","contactVerified":"Yes","clientNeedConfirmed":"Yes",
                 "needEvidenceUrl":url,"financialApproved":"No","discovered_at":now.isoformat(),
-                "contactVerificationMethod": contact_method or ("Public email displayed on the source website" if email else "Public contact form verified on source website" if contact_form_verified else "Active buyer post accepts public replies")
+                "contactVerificationMethod": contact_method or ("Public email displayed on the source website" if email else "Public contact form verified on source website" if contact_form_verified else "Public buyer post found; thread reply availability is not confirmed")
             })
         if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"evidence_excerpt":evidence_excerpt[:500] or None,"checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
     if key and owner_id:
