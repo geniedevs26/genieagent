@@ -399,7 +399,7 @@ def main():
         intent_probe=INTENT.search(page_text)
         paid_probe=PAID_SIGNAL.search(page_text)
         direct_probe=DIRECT_INTENT.search(page_text)
-        if reddit_verified and re.search(r"\\[(?:hiring|paid)\\]",page_text[:500],re.I):
+        if reddit_verified and re.search(r"\[(?:hiring|paid)\]",page_text[:500],re.I):
             direct_probe=True
         on_page_intent=bool(intent_probe and paid_probe and direct_probe
             and abs(intent_probe.start()-paid_probe.start())<=600
