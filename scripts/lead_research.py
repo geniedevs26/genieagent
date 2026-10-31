@@ -412,6 +412,8 @@ def main():
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
         for row in candidates:w.writerow({k:row.get(k,"") for k in cols})
     stats["new_candidates"]=len(candidates)
+    with open("data/research_stats.json","w",encoding="utf-8") as f:
+        json.dump(stats,f,ensure_ascii=False)
     print("Diagnostics: "+", ".join(f"{k}={v}" for k,v in stats.items()))
     print(f"Saved {len(candidates)} automatically verified direct-business leads. Unverified pages remain excluded from the private lead pipeline.")
 
