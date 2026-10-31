@@ -101,7 +101,7 @@ for item in [
     "SOCIAL_PAGE_CACHE = {}",
     "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts",
     "https://hn.algolia.com/api/v1/search_by_date",
-    "potential_request=bool(reddit_verified and intent_probe and direct_probe",
+    "potential_request=bool(intent_probe and direct_probe and not paid_probe",
     "contact_verified=bool(email or contact_form_verified or reddit_verified)",
     '"contactMethod": "Public email"',
     'site:reddit.com/r/forhire [Hiring] web developer paid project',
