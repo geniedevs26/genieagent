@@ -219,6 +219,10 @@ if "emails.update(EMAIL_RE.findall(page))" not in research:
     fail("research must extract public email addresses from page markup")
 if "if reddit_verified and intent_probe:" not in research:
     fail("buyer-authored social requests must not be rejected by website-only direct-intent checks")
+if "contact_verified=bool(email or contact_form_verified or reddit_verified)" not in research:
+    fail("verified email, contact form, and active buyer reply routes must enter research CRM")
+if "'ignored'" not in (ROOT/"supabase/migrations/20261031143000_allow_ignored_inbox_state.sql").read_text(encoding="utf-8"):
+    fail("inbox autoresponder ignored state must be allowed by the database constraint")
 if "python scripts/execute_approved_actions.py" not in workflow:
     fail("hourly workflow must invoke the owner-approved stage executor")
 if workflow.index("python scripts/inbox_monitor.py") > workflow.index("python scripts/auto_outreach.py"):
