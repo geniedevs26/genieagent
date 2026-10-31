@@ -538,7 +538,10 @@ def main():
         intent_probe=INTENT.search(page_text)
         paid_probe=PAID_SIGNAL.search(page_text)
         direct_probe=DIRECT_INTENT.search(page_text)
-        if reddit_verified and re.search(r"\[(?:hiring|paid)\]",page_text[:500],re.I):
+        # Social cache entries are buyer-authored posts/comments, not publisher pages.
+        # The explicit first-person requirement matcher is sufficient to establish intent;
+        # do not require a second website-style phrase match that drops genuine requests.
+        if reddit_verified and intent_probe:
             direct_probe=True
         paid_request=bool(intent_probe and paid_probe and direct_probe
             and abs(intent_probe.start()-paid_probe.start())<=600
@@ -547,7 +550,7 @@ def main():
             and not JOB_LISTING.search(page_text[:12000]))
         # Public buyer requests without a stated budget are retained as research prospects,
         # never mislabeled as paid-confirmed leads and never eligible for automatic outreach.
-        potential_request=bool(reddit_verified and intent_probe and direct_probe and not paid_probe
+        potential_request=bool(intent_probe and direct_probe and not paid_probe
             and not UNPAID_SIGNAL.search(page_text[:12000])
             and not LOW_QUALITY.search(page_text[:12000])
             and not JOB_LISTING.search(page_text[:12000]))
