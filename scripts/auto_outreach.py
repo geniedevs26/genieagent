@@ -280,7 +280,8 @@ def main():
         if (lid in initial_by_lead or lid in followups_by_lead or not email or not website or not evidence
                 or email.lower() in suppressed or source_domain=="hubspot.com" or source_domain.endswith(".hubspot.com")
                 or payload.get("clientNeedConfirmed")!="Yes" or payload.get("contactVerified")!="Yes"
-                or not payload.get("needEvidenceUrl") or payload.get("status") in ("Opted out","Not interested")):
+                or not payload.get("needEvidenceUrl") or payload.get("paidSignal")!="Yes"
+                or payload.get("status") in ("Opted out","Not interested")):
             skipped+=1
             continue
         subject,body,reason=personalised_message(lead,payload,"email",previous_bodies)
