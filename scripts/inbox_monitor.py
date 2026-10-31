@@ -249,11 +249,11 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
 def scope_intake_reply_text(lead, subject, body):
     """Automated pre-sales qualification. Never quotes or creates a binding promise."""
     service=(lead.get("service_need") or "your project").strip()
-    text_value=re.sub(r"\\s+"," ",(subject or "")+" "+(body or "")).strip()
+    text_value=re.sub(r"\s+"," ",(subject or "")+" "+(body or "")).strip()
     asks=[]
-    has_scope=bool(re.search(r"\\b(?:build|develop|design|redesign|create|fix|integrate|automate|translate|clean|deliver|features?|pages?|screens?|dashboard|chatbot|website|app|spreadsheet|workflow)\\b",text_value,re.I))
-    has_budget=bool(re.search(r"(?:[$€£₹]\\s?\\d|\\b(?:USD|EUR|GBP|INR|AUD|CAD)\\s?\\d|\\d[\\d,.]*\\s?(?:USD|EUR|GBP|INR|AUD|CAD)\\b|\\b(?:budget|budgeted|hourly rate|fixed price|per hour)\\b)",text_value,re.I))
-    has_timing=bool(re.search(r"\\b(?:by|before|within|deadline|timeline|weeks?|months?|days?|urgent|asap|flexible)\\b",text_value,re.I))
+    has_scope=bool(re.search(r"\b(?:build|develop|design|redesign|create|fix|integrate|automate|translate|clean|deliver|features?|pages?|screens?|dashboard|chatbot|website|app|spreadsheet|workflow)\b",text_value,re.I))
+    has_budget=bool(re.search(r"(?:[$€£₹]\s?\d|\b(?:USD|EUR|GBP|INR|AUD|CAD)\s?\d|\d[\d,.]*\s?(?:USD|EUR|GBP|INR|AUD|CAD)\b|\b(?:budget|budgeted|hourly rate|fixed price|per hour)\b)",text_value,re.I))
+    has_timing=bool(re.search(r"\b(?:by|before|within|deadline|timeline|weeks?|months?|days?|urgent|asap|flexible)\b",text_value,re.I))
     if not has_scope: asks.append("the exact deliverables and features you need")
     if not has_budget: asks.append("your expected budget range and currency")
     if not has_timing: asks.append("your preferred timeframe or deadline")
@@ -262,11 +262,11 @@ def scope_intake_reply_text(lead, subject, body):
     else:
         next_step="Thank you — I have the initial scope, budget and timing details. If you want me to move to the formal project review, please reply clearly: “I confirm I want to proceed.”"
     return (
-        "Hello,\\n\\nThank you for getting back to me about "+service+". "
-        +next_step+"\\n\\n"
+        "Hello,\n\nThank you for getting back to me about "+service+". "
+        +next_step+"\n\n"
         "I will review the information and confirm whether the work fits my services. "
-        "No price, delivery date, payment term, agreement or project commitment is made by this email.\\n\\n"
-        "Kind regards,\\nSiva Satya Prasad\\nGenieDevs"
+        "No price, delivery date, payment term, agreement or project commitment is made by this email.\n\n"
+        "Kind regards,\nSiva Satya Prasad\nGenieDevs"
     )
 
 
@@ -398,7 +398,7 @@ def main():
             combined=subject+"\n"+text
             auto_submitted=(msg.get("Auto-Submitted") or "").strip().lower()
             precedence=(msg.get("Precedence") or "").strip().lower()
-            if (auto_submitted and auto_submitted!="no") or precedence in ("bulk","list","junk") or re.search(r"\\b(?:out of office|automatic reply|auto.?reply|vacation responder)\\b",subject,re.I):
+            if (auto_submitted and auto_submitted!="no") or precedence in ("bulk","list","junk") or re.search(r"\b(?:out of office|automatic reply|auto.?reply|vacation responder)\b",subject,re.I):
                 api("/rest/v1/outreach_actions",key,"POST",{
                     "owner_id":owner_id,"lead_id":None,"action_type":"inbound_reply",
                     "recipient":sender,"approval_status":"ignored",
