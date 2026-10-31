@@ -106,9 +106,7 @@ def collect():
             row=normalize("RemoteOK",j,j.get("id") or j.get("slug"),j.get("position"),j.get("company"),location,j.get("type")," ".join(x for x in [j.get("salary_min") and str(j.get("salary_min")),j.get("salary_max") and str(j.get("salary_max"))] if x) or "",j.get("description"),j.get("url"),j.get("apply_url") or j.get("url"),j.get("date"),True,j.get("tags"))
             if row: found[("RemoteOK",row["source_job_id"])]=row
     except Exception as e: errors.append("RemoteOK: "+str(e)[:180])
-    rows=sorted(found.values(),key=lambda x: (0 if "Worldwide" in x["eligibility_status"] else 1 if "India eligible" in x["eligibility_status"] else 2, x["posted_at"] or ""),reverse=False)
-    # newest first within source-independent eligibility groups
-    rows.sort(key=lambda x:(0 if "Worldwide" in x["eligibility_status"] else 1 if "India eligible" in x["eligibility_status"] else 2, x["posted_at"] or ""),reverse=False)
+    rows=sorted(found.values(),key=lambda x:(0 if "Worldwide" in x["eligibility_status"] else 1 if "India eligible" in x["eligibility_status"] else 2, x["posted_at"] or ""),reverse=True)
     rows=rows[:250]
     return rows,errors
 
