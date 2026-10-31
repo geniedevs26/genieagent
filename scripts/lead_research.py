@@ -204,7 +204,7 @@ def discover_reddit_requests():
     found=[]
     atom="{http://www.w3.org/2005/Atom}"
     for subreddit in REDDIT_SUBREDDITS:
-        feed_url=f"https://www.reddit.com/r/{subreddit}/new/.rss?limit=100"
+        feed_url=f"https://genieagent.pages.dev/api/reddit-feed?sub={urllib.parse.quote(subreddit)}"
         raw=get(feed_url,timeout=8,attempts=1)
         if not raw: continue
         try: root=ET.fromstring(raw)
