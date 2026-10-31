@@ -22,7 +22,7 @@ SKILLS = {
 SENIOR = re.compile(r"\b(senior|sr\.?|lead|principal|staff engineer|architect|engineering manager|director|head of|vp|chief)\b", re.I)
 EXPERIENCE = re.compile(r"\b(?:[5-9]|[1-9][0-9])\s*\+?\s*years? (?:of )?(?:professional |commercial |relevant )?experience\b", re.I)
 NON_REMOTE = re.compile(r"\b(on[- ]site|onsite|hybrid only|must be located in (?:the )?(?:us|usa|uk|canada|europe|germany|france|australia))\b", re.I)
-BLOCK = re.compile(r"\b(unpaid|volunteer|commission only|equity only|internship|unpaid internship|training fee|registration fee|pay to apply)\b", re.I)
+BLOCK = re.compile(r"\b(unpaid|volunteer|commission only|equity only|internship|unpaid internship|training fee|registration fee|pay to apply|payment required to access|require payment to access|accessing .* tasks? may require payment|membership fee|paid membership|fee to join|pay to unlock tasks?)\b", re.I)
 
 def get_json(url):
     req = Request(url, headers=HEADERS)
@@ -36,11 +36,16 @@ def clean_html(s):
     return re.sub(r"\s+", " ", s).strip()
 
 def match_skills(title, description, tags):
-    hay = (title + " " + description + " " + " ".join(tags or [])).lower()
+    role_hay = (title + " " + " ".join(tags or [])).lower()
+    body_hay = description.lower()
     matches=[]
     for group, terms in SKILLS.items():
-        if any(term in hay for term in terms):
+        if any(term in role_hay for term in terms):
             matches.append(group)
+    # Office/admin roles can fit the user's Excel and records experience without
+    # falsely tagging unrelated web-development or QA skills from incidental text.
+    if not matches and re.search(r"\b(office assistant|administrative assistant|admin assistant|operations assistant|data entry|bookkeeping assistant)\b", title, re.I) and re.search(r"\b(excel|spreadsheet|data entry|reporting|bookkeeping)\b", body_hay):
+        matches.append("Excel / data")
     return matches
 
 def location_eligibility(location, remote):
@@ -129,8 +134,14 @@ def sync(rows):
         return 0
     uid=owner_id(key,email)
     now=datetime.now(timezone.utc).isoformat()
+    if not rows:
+        print("No qualifying remote jobs returned; existing saved roles were left unchanged.")
+        return 0
+    headers={"apikey":key,"Authorization":"Bearer "+key,"Content-Type":"application/json"}
+    deactivate=Request(SUPABASE_URL+"/rest/v1/job_opportunities?owner_id=eq."+uid,data=json.dumps({"is_active":False}).encode(),headers={**headers,"Prefer":"return=minimal"},method="PATCH")
+    with urlopen(deactivate,timeout=25): pass
     payload=[dict(x,owner_id=uid,last_seen_at=now,is_active=True,updated_at=now) for x in rows]
-    headers={"apikey":key,"Authorization":"Bearer "+key,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"}
+    headers={**headers,"Prefer":"resolution=merge-duplicates,return=representation"}
     total=0
     for i in range(0,len(payload),50):
         req=Request(SUPABASE_URL+"/rest/v1/job_opportunities?on_conflict=owner_id,source_name,source_job_id",data=json.dumps(payload[i:i+50]).encode(),headers=headers,method="POST")
