@@ -1,15 +1,15 @@
 const FEEDS = {
-  "forhire-web": ["forhire", "web developer"],
-  "forhire-website": ["forhire", "website"],
-  "forhire-chatbot": ["forhire", "chatbot"],
-  "forhire-automation": ["forhire", "automation"],
-  "forhire-excel": ["forhire", "Excel"],
-  "freelanceindia-web": ["FreelanceIndia", "website developer"],
-  "freelanceindia-chatbot": ["FreelanceIndia", "chatbot"],
-  "done-dirt-cheap-web": ["DoneDirtCheap", "website"],
-  "wordpress-jobs": ["WordpressJobs", "WordPress"],
-  "design-jobs-web": ["DesignJobs", "website"],
-  "android-jobs-app": ["AndroidJobs", "Android app"],
+  "forhire-web": ["forhire", "title:Hiring web developer"],
+  "forhire-website": ["forhire", "title:Hiring website"],
+  "forhire-chatbot": ["forhire", "title:Hiring chatbot"],
+  "forhire-automation": ["forhire", "title:Hiring automation"],
+  "forhire-excel": ["forhire", "title:Hiring Excel"],
+  "freelanceindia-web": ["FreelanceIndia", "title:Hiring website developer"],
+  "freelanceindia-chatbot": ["FreelanceIndia", "title:Hiring chatbot"],
+  "done-dirt-cheap-web": ["DoneDirtCheap", "title:Hiring website"],
+  "wordpress-jobs": ["WordpressJobs", "title:Hiring WordPress"],
+  "design-jobs-web": ["DesignJobs", "title:Hiring website design"],
+  "android-jobs-app": ["AndroidJobs", "title:Hiring Android app"],
 };
 
 export async function onRequestGet({ request }) {
