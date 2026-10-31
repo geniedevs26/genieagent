@@ -110,7 +110,7 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
         # first; no price, delivery date, agreement or commitment is offered here.
         payload["buyerScopeRequests"]=(payload.get("buyerScopeRequests") if isinstance(payload.get("buyerScopeRequests"),list) else [])+[{
             "received_at":now,"sender":sender,"subject":subject[:180],
-            "message_excerpt":re.sub(r"\\s+"," ",reply_body)[:700]
+            "message_excerpt":re.sub(r"\s+"," ",reply_body)[:700]
         }]
         payload["status"]="Pre-sales discovery"
         payload["lastClientReplyAt"]=now
@@ -126,8 +126,8 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
     if not order and order_accept:
         prior_buyer_details=payload.get("buyerScopeRequests") if isinstance(payload.get("buyerScopeRequests"),list) else []
         buyer_details=" | ".join(clean.get("message_excerpt","") if isinstance(clean,dict) else "" for clean in prior_buyer_details)
-        buyer_details=re.sub(r"\\s+"," ",buyer_details)[:1800]
-        current_details=re.sub(r"\\s+"," ",reply_body)[:700]
+        buyer_details=re.sub(r"\s+"," ",buyer_details)[:1800]
+        current_details=re.sub(r"\s+"," ",reply_body)[:700]
         scope=service+" — "+evidence+" — Buyer-provided details: "+(buyer_details+" | "+current_details).strip(" |")
         currency=payload.get("dealCurrency") or "USD"
         created=api("/rest/v1/client_orders",key,"POST",[{
