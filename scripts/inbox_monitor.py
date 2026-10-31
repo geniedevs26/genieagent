@@ -105,7 +105,25 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
     service=lead.get("service_need") or payload.get("service") or "the requested project"
     evidence=lead.get("evidence_summary") or payload.get("evidence") or "Client's stated requirement"
     safe_evidence="Client reply from "+sender+"; subject: "+subject[:160]+"; response excerpt: "+re.sub(r"\s+"," ",reply_body)[:350]
-    if not order and (proposal_request or order_accept):
+    if not order and proposal_request and not order_accept:
+        # Keep the owner out of routine pre-sales discovery. Gather scope and buyer budget
+        # first; no price, delivery date, agreement or commitment is offered here.
+        payload["buyerScopeRequests"]=(payload.get("buyerScopeRequests") if isinstance(payload.get("buyerScopeRequests"),list) else [])+[{
+            "received_at":now,"sender":sender,"subject":subject[:180],
+            "message_excerpt":re.sub(r"\\s+"," ",reply_body)[:700]
+        }]
+        payload["status"]="Pre-sales discovery"
+        payload["lastClientReplyAt"]=now
+        payload["activity"]=(payload.get("activity") if isinstance(payload.get("activity"),list) else [])+[{
+            "date":now[:10],"text":"Buyer requested pricing or more information. GenieAgent automatically requested exact scope, deliverables and budget; no owner approval or financial commitment was created."
+        }]
+        api("/rest/v1/leads?id=eq."+lead["id"],key,"PATCH",{"payload":payload,"updated_at":now},"return=minimal")
+        event(key,owner_id,"buyer_scope_intake","automated",
+            "Buyer requested pricing; automated scope and budget clarification sent before owner involvement.",
+            {"lead_id":lead["id"],"sender":sender,"subject":subject[:160]})
+        return "scope_intake_reply"
+
+    if not order and order_accept:
         scope=service+" — "+evidence
         currency=payload.get("dealCurrency") or "USD"
         created=api("/rest/v1/client_orders",key,"POST",[{
@@ -224,6 +242,24 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
         return "order_close_approval_created"
     return "reply_recorded"
 
+def scope_intake_reply_text(lead, subject, body):
+    """Deterministic pre-sales intake; no quote, price, timeline or binding promise."""
+    company=(lead.get("company_name") or "there").strip()
+    service=(lead.get("service_need") or "your project").strip()
+    return (
+        "Hello,\\n\\n"
+        "Thank you for your interest in working together on "+service+". "
+        "Before I can assess the project accurately, could you please share:\\n"
+        "1. The exact deliverables and features you need.\\n"
+        "2. Any existing website, files or materials involved (please do not send passwords or private credentials).\\n"
+        "3. Your expected budget range and currency.\\n"
+        "4. Your preferred timing and any important milestones.\\n\\n"
+        "Once these details are clear, please confirm whether you would like me to proceed with a formal project review. "
+        "No price, delivery date, payment term or agreement is confirmed by this message.\\n\\n"
+        "Kind regards,\\nSiva Satya Prasad\\nGenieDevs"
+    )
+
+
 def ai_reply_text(account_id, token, subject, body, lead):
     if not account_id or not token or AUTO_REPLY_BLOCK_RE.search(subject+"\n"+body):
         return ""
@@ -259,7 +295,7 @@ def send_ai_reply(key, owner_id, lead, recipient, subject, answer, message_id, h
         msg["In-Reply-To"]=message_id
         msg["References"]=message_id
     msg.set_content(answer+"\n\nKind regards,\nSiva Satya Prasad\nGenieDevs")
-    api("/rest/v1/outreach_actions",key,"POST",[{"id":action_id,"owner_id":owner_id,"lead_id":lead["id"],"action_type":"ai_reply","draft_subject":msg["Subject"],"draft_body":answer,"recipient":recipient,"approval_status":"pending","result_notes":"Bounded AI factual reply; price/commitment/call filters passed."}],"return=minimal")
+    api("/rest/v1/outreach_actions",key,"POST",[{"id":action_id,"owner_id":owner_id,"lead_id":lead["id"],"action_type":"ai_reply","draft_subject":msg["Subject"],"draft_body":answer,"recipient":recipient,"approval_status":"pending","result_notes":"Automated buyer reply; deterministic scope intake or bounded factual response. No quote or binding commitment."}],"return=minimal")
     try:
         with smtplib.SMTP(host,port,timeout=25) as server:
             server.starttls()
@@ -267,7 +303,7 @@ def send_ai_reply(key, owner_id, lead, recipient, subject, answer, message_id, h
             server.send_message(msg)
         now=datetime.now(timezone.utc).isoformat()
         api("/rest/v1/outreach_actions?id=eq."+action_id,key,"PATCH",{"approval_status":"pending_verification","executed_at":now,"result_notes":"SMTP accepted AI reply; delivery not independently verified."},"return=minimal")
-        event(key,owner_id,"ai_client_reply","pending_verification","AI sent a bounded factual email reply.",{"lead_id":lead["id"],"recipient":recipient,"action_id":action_id})
+        event(key,owner_id,"automated_client_reply","pending_verification","Automated client email reply sent; scope intake contains no quote or binding commitment.",{"lead_id":lead["id"],"recipient":recipient,"action_id":action_id})
         return True
     except Exception as exc:
         api("/rest/v1/outreach_actions?id=eq."+action_id,key,"PATCH",{"approval_status":"failed","result_notes":"AI reply SMTP failed: "+str(exc)[:250]},"return=minimal")
@@ -318,7 +354,7 @@ def main():
     }),key) or []
     leads_by_id={row["id"]:row for row in leads}
     mail=imaplib.IMAP4_SSL(host,port,timeout=20)
-    processed=replies=bounces=ignored=orders_created=approvals_created=optouts=ai_replies=ai_held=0
+    processed=replies=bounces=ignored=orders_created=approvals_created=optouts=ai_replies=ai_held=intake_replies=0
     today=datetime.now(timezone.utc).date().isoformat()
     ai_replies_today=sum(1 for a in actions if a.get("action_type")=="ai_reply"
                          and (a.get("created_at") or "").startswith(today))
@@ -411,7 +447,7 @@ def main():
                     if result=="opt_out": optouts+=1
                     if result=="proposal_approval_created": orders_created+=1;approvals_created+=1
                     if result in ("agreement_approval_created","project_start_approval_created","order_close_approval_created"): approvals_created+=1
-                    if result=="reply_recorded":
+                    if result in ("reply_recorded","scope_intake_reply"):
                         account_id=os.getenv("CLOUDFLARE_AI_ACCOUNT_ID","").strip()
                         token=os.getenv("CLOUDFLARE_AI_API_TOKEN","").strip()
                         smtp_host=os.getenv("SMTP_HOST","").strip()
@@ -420,18 +456,21 @@ def main():
                         sender_email=os.getenv("GENIE_SENDER_EMAIL","").strip()
                         try: smtp_port=int(os.getenv("SMTP_PORT") or "587")
                         except ValueError: smtp_port=587
-                        answer=ai_reply_text(account_id,token,subject,text,lead) if ai_replies<ai_reply_limit else ""
+                        # Scope/budget intake is deterministic and does not consume the AI quota.
+                        answer=(scope_intake_reply_text(lead,subject,text) if result=="scope_intake_reply"
+                                else ai_reply_text(account_id,token,subject,text,lead) if ai_replies<ai_reply_limit else "")
                         if answer and all([smtp_host,smtp_user,smtp_pass,sender_email]):
                             if send_ai_reply(key,owner_id,lead,sender,subject,answer,message_id,
                                              smtp_host,smtp_port,smtp_user,smtp_pass,sender_email):
-                                ai_replies+=1
+                                if result=="scope_intake_reply": intake_replies+=1
+                                else: ai_replies+=1
                             else: ai_held+=1
                         else:
                             ai_held+=1
-                            event(key,owner_id,"ai_client_reply","held",
-                                "Client reply recorded; no safe AI response was sent.",
+                            event(key,owner_id,"automated_client_reply","held",
+                                "Client reply recorded; automated response was held safely.",
                                 {"lead_id":lead["id"],"sender":sender,"subject":subject[:160],
-                                 "reason":"AI credentials, SMTP settings, or safe reply unavailable."})
+                                 "reason":"SMTP settings or a safe automated response unavailable."})
                 api("/rest/v1/outreach_actions",key,"POST",{
                     "owner_id":owner_id,"lead_id":original.get("lead_id"),"action_type":"inbound_reply",
                     "recipient":sender,"approval_status":"replied",
@@ -448,7 +487,7 @@ def main():
         except Exception: pass
         mail.logout()
 
-    msg=f"Inbox monitor completed: {replies} replies, {ai_replies} AI replies SMTP-accepted, {ai_held} held for review, {bounces} bounces, {optouts} opt-outs, {orders_created} proposal opportunities and {approvals_created} stage approvals; {ignored} unrelated messages ignored. SMTP acceptance is not proof of delivery."
+    msg=f"Inbox monitor completed: {replies} replies, {intake_replies} automatic scope/budget intake replies, {ai_replies} bounded AI replies SMTP-accepted, {ai_held} held for review, {bounces} bounces, {optouts} opt-outs, {orders_created} proposal opportunities and {approvals_created} stage approvals; {ignored} unrelated messages ignored. SMTP acceptance is not proof of delivery."
     print(msg)
     if summary_path:
         with open(summary_path,"a",encoding="utf-8") as f: f.write("\n## Inbox monitoring\n\n"+msg+"\n")
