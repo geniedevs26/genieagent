@@ -87,6 +87,11 @@ def main():
 
     with open(CSV_PATH, newline="", encoding="utf-8-sig") as source:
         all_rows = list(csv.DictReader(source))
+    try:
+        with open("data/research_stats.json",encoding="utf-8") as stats_file:
+            discovery_stats=json.load(stats_file)
+    except (OSError,ValueError):
+        discovery_stats={}
     # Only records that passed first-person requirement, paid-signal,
     # same-site public email and source-evidence checks enter the qualified CRM.
     candidates = [
@@ -236,7 +241,8 @@ def main():
                      key, method="PATCH", payload=update, prefer="return=minimal")
 
     finished = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
-    message = f"Hourly run complete: {len(all_rows)} source rows reviewed; {len(candidates)} contained on-page requirement evidence; {len(rows)} new qualified leads inserted; {len(requalified_updates)} existing research records promoted after re-verification; {len(candidates) - len(rows) - len(requalified_updates)} skipped as duplicates or protected records."
+    discovery_note = (f" Discovery checked {discovery_stats.get('pages_checked',0)} pages from {discovery_stats.get('search_results',0)} search results across {discovery_stats.get('queries',0)} queries; {discovery_stats.get('page_failures',0)} page fetches failed.")
+    message = f"Hourly run complete: {len(all_rows)} qualified source rows reviewed; {len(candidates)} passed the CRM evidence gate; {len(rows)} new qualified leads inserted; {len(requalified_updates)} existing research records promoted; {len(candidates) - len(rows) - len(requalified_updates)} skipped as duplicates or protected records.{discovery_note}"
     request_json(
         f"{SUPABASE_URL}/rest/v1/agent_runs?id=eq.{run_id}",
         key, method="PATCH",
@@ -250,7 +256,10 @@ def main():
         payload={"owner_id": owner_id, "event_type": "research_completed", "entity_table": "agent_runs",
                  "entity_id": run_id, "event_status": "completed", "summary": message,
                  "details": {"source_rows": len(all_rows), "passed_confirmation_gate": len(candidates),
-                             "new_leads_inserted": len(rows), "existing_leads_requalified": len(requalified_updates), "duplicates_skipped": len(candidates) - len(rows) - len(requalified_updates)}},
+                             "new_leads_inserted": len(rows), "existing_leads_requalified": len(requalified_updates), "duplicates_skipped": len(candidates) - len(rows) - len(requalified_updates),
+                             "search_queries": discovery_stats.get("queries",0), "search_results": discovery_stats.get("search_results",0),
+                             "pages_checked": discovery_stats.get("pages_checked",0), "pages_skipped_seen": discovery_stats.get("pages_skipped_seen",0),
+                             "page_failures": discovery_stats.get("page_failures",0), "qualified_pages": discovery_stats.get("qualified_pages",0)}},
         prefer="return=minimal",
     )
     print(message)
