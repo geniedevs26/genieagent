@@ -276,6 +276,55 @@ def fetch_reddit_post(url):
     page="<html><head><title>"+html.escape(title)+"</title></head><body><main>"+html.escape(title+" "+body)+"</main></body></html>"
     return page, True, "Active buyer-authored Reddit post; public reply route verified"
 
+
+SOCIAL_PAGE_CACHE = {}
+
+def discover_social_requests():
+    """Search public no-key APIs for buyer-authored posts with an existing reply path."""
+    found=[]
+    queries=[
+        "looking for web developer", "need website developer", "hiring web developer budget",
+        "need WordPress developer", "looking for Shopify developer", "need chatbot developer",
+        "looking for automation developer", "paid Excel project", "need Android app developer",
+        "looking for graphic designer project", "need Telugu translator", "website redesign budget",
+        "looking for technical writer", "need landing page designer",
+    ]
+    for query in queries:
+        bsky_url="https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?"+urllib.parse.urlencode({"q":query,"limit":30,"sort":"latest"})
+        raw=get(bsky_url,timeout=12,attempts=1)
+        if raw:
+            try: posts=json.loads(raw).get("posts",[])
+            except (ValueError,AttributeError): posts=[]
+            for item in posts:
+                post=item.get("post") or {}
+                record=post.get("record") or {}
+                author=post.get("author") or {}
+                body=(record.get("text") or "").strip()
+                handle=(author.get("handle") or "").strip()
+                uri=post.get("uri") or ""
+                if not body or not handle or not uri or int(post.get("replyCount") or 0)<1: continue
+                url=f"https://bsky.app/profile/{handle}/post/{uri.rsplit('/',1)[-1]}"
+                page="<html><head><title>"+html.escape(handle)+" — public buyer request</title></head><body><main>"+html.escape(body)+"</main></body></html>"
+                SOCIAL_PAGE_CACHE[url]=(page,True,"Public Bluesky post with existing replies; public reply route")
+                found.append(("Bluesky buyer post",url,body[:700],"Bluesky public search API"))
+        hn_url="https://hn.algolia.com/api/v1/search_by_date?"+urllib.parse.urlencode({"query":query,"tags":"comment","hitsPerPage":30})
+        raw=get(hn_url,timeout=12,attempts=1)
+        if raw:
+            try: hits=json.loads(raw).get("hits",[])
+            except (ValueError,AttributeError): hits=[]
+            for hit in hits:
+                body=html.unescape(re.sub(r"<[^>]+>"," ",hit.get("comment_text") or ""))
+                body=re.sub(r"\s+"," ",body).strip()
+                author=(hit.get("author") or "").strip()
+                item_id=str(hit.get("objectID") or "")
+                if not body or not author or not item_id: continue
+                url="https://news.ycombinator.com/item?id="+item_id
+                page="<html><head><title>Hacker News public request</title></head><body><main>"+html.escape(body)+"</main></body></html>"
+                SOCIAL_PAGE_CACHE[url]=(page,True,"Public Hacker News comment with a reply thread")
+                found.append(("Hacker News buyer comment",url,body[:700],"Hacker News Algolia public API"))
+    unique={item[1]:item for item in found}
+    return list(unique.values())
+
 def search(query, page_offset=0):
     results=[]
     page_offset=max(0,int(page_offset))
@@ -425,6 +474,9 @@ def main():
     reddit_results=discover_reddit_requests()
     stats["reddit_buyer_posts_found"]=len(reddit_results)
     discovered.extend(reddit_results)
+    social_results=discover_social_requests()
+    stats["social_buyer_posts_found"]=len(social_results)
+    discovered.extend(social_results)
     for query in QUERIES:
         stats["queries"]+=1
         results=search(query,page_offset)
@@ -460,7 +512,9 @@ def main():
         stats["pages_checked"]+=1
         reddit_verified=False
         contact_method=""
-        if domain.endswith("reddit.com"):
+        if normalized in SOCIAL_PAGE_CACHE:
+            page,reddit_verified,contact_method=SOCIAL_PAGE_CACHE[normalized]
+        elif domain.endswith("reddit.com"):
             page,reddit_verified,contact_method=fetch_reddit_post(url)
         else:
             page=get(url,timeout=6)
