@@ -144,7 +144,7 @@ INTENT = re.compile(
     r"designer needed|writer needed|translator needed|website redesign project",
     re.I
 )
-PAID_SIGNAL = re.compile(r"\b(?:paid project|paid work|budget(?:ed)?|project budget|commission|compensation|rate|quote|request for quote|payment|pay for|fee|funded)\b", re.I)
+PAID_SIGNAL = re.compile(r"(?:\\b(?:paid|paid project|paid work|budget(?:ed)?|project budget|commission|compensation|hourly rate|fixed price|per hour|rate|quote|request for quote|payment|pay for|fee|funded)\\b|(?:[$€£₹]\\s?\\d{2,}|\\b(?:USD|EUR|GBP|INR|AUD|CAD)\\s?\\d{2,}|\\d{2,}\\s?(?:USD|EUR|GBP|INR|AUD|CAD)\\b))", re.I)
 UNPAID_SIGNAL = re.compile(r"\b(?:unpaid|volunteer|equity only|no budget|not paid|free work)\b", re.I)
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download|what is an? |how to create|how to build|step-by-step|ultimate guide|rfp template|proposal template|blog post|case study|\bblog\b|\barticle\b|\bresources?\b|\bwhitepaper\b|\bwebinar\b|\bpress release\b|\bportfolio\b|\bjob description\b|\bcareers?\b|\bhow it works\b", re.I)
 NON_BUYER_PATH = re.compile(r"/(?:blog|articles?|resources?|learn|academy|guides?|templates?|examples?|news|press|careers?|jobs?|vacancies|positions)(?:/|$)", re.I)
@@ -302,7 +302,7 @@ def discover_social_requests():
                 body=(record.get("text") or "").strip()
                 handle=(author.get("handle") or "").strip()
                 uri=post.get("uri") or ""
-                if not body or not handle or not uri or int(post.get("replyCount") or 0)<1: continue
+                if not body or not handle or not uri: continue
                 url=f"https://bsky.app/profile/{handle}/post/{uri.rsplit('/',1)[-1]}"
                 page="<html><head><title>"+html.escape(handle)+" — public buyer request</title></head><body><main>"+html.escape(body)+"</main></body></html>"
                 SOCIAL_PAGE_CACHE[url]=(page,True,"Public Bluesky post with existing replies; public reply route")
@@ -318,7 +318,7 @@ def discover_social_requests():
                 title=html.unescape((hit.get("title") or "").strip())
                 author=(hit.get("author") or "").strip()
                 item_id=str(hit.get("objectID") or "")
-                if not author or not item_id or int(hit.get("num_comments") or 0)<1: continue
+                if not author or not item_id: continue
                 combined=re.sub(r"\s+"," ",title+" "+body).strip()
                 if not INTENT.search(combined): continue
                 url="https://news.ycombinator.com/item?id="+item_id
@@ -559,6 +559,8 @@ def main():
             and not JOB_LISTING.search(page_text[:12000]))
         on_page_intent=paid_request or potential_request
         emails=set(EMAIL_RE.findall(page_text))
+        emails.update(EMAIL_RE.findall(page))
+        emails.update(re.findall(r"mailto:([^\\\"'<>? ]+)",page,re.I))
         phone=extract_public_phone(page_text,parser.links)
         phone_source=url if phone else ""
         contact_url=url if reddit_verified else ""
