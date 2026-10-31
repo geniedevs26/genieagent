@@ -210,8 +210,12 @@ for path in ROOT.rglob("*"):
         if re.search(pattern,content):
             fail(f"possible secret material detected in {path.relative_to(ROOT)}")
 
-if 'AUTO_OUTREACH_ENABLED: "false"' not in workflow:
-    fail("outbound prospect emails must remain disabled until each message is owner-approved")
+if 'AUTO_OUTREACH_ENABLED: "true"' not in workflow:
+    fail("owner-authorized automatic prospect outreach must be enabled")
+if '"lead_status":"in.(qualified,research)"' not in outreach:
+    fail("automatic outreach must process both paid-confirmed leads and budget-unconfirmed buyer prospects")
+if "if reddit_verified and intent_probe:" not in research:
+    fail("buyer-authored social requests must not be rejected by website-only direct-intent checks")
 if "python scripts/execute_approved_actions.py" not in workflow:
     fail("hourly workflow must invoke the owner-approved stage executor")
 if workflow.index("python scripts/inbox_monitor.py") > workflow.index("python scripts/auto_outreach.py"):
