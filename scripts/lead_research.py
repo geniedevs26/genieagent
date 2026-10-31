@@ -144,7 +144,7 @@ INTENT = re.compile(
     r"designer needed|writer needed|translator needed|website redesign project",
     re.I
 )
-PAID_SIGNAL = re.compile(r"(?:\\b(?:paid|paid project|paid work|budget(?:ed)?|project budget|commission|compensation|hourly rate|fixed price|per hour|rate|quote|request for quote|payment|pay for|fee|funded)\\b|(?:[$€£₹]\\s?\\d{2,}|\\b(?:USD|EUR|GBP|INR|AUD|CAD)\\s?\\d{2,}|\\d{2,}\\s?(?:USD|EUR|GBP|INR|AUD|CAD)\\b))", re.I)
+PAID_SIGNAL = re.compile(r"(?:\b(?:paid|paid project|paid work|budget(?:ed)?|project budget|commission|compensation|hourly rate|fixed price|per hour|rate|quote|request for quote|payment|pay for|fee|funded)\b|(?:[$€£₹]\s?\d{2,}|\b(?:USD|EUR|GBP|INR|AUD|CAD)\s?\d{2,}|\d{2,}\s?(?:USD|EUR|GBP|INR|AUD|CAD)\b))", re.I)
 UNPAID_SIGNAL = re.compile(r"\b(?:unpaid|volunteer|equity only|no budget|not paid|free work)\b", re.I)
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download|what is an? |how to create|how to build|step-by-step|ultimate guide|rfp template|proposal template|blog post|case study|\bblog\b|\barticle\b|\bresources?\b|\bwhitepaper\b|\bwebinar\b|\bpress release\b|\bportfolio\b|\bjob description\b|\bcareers?\b|\bhow it works\b", re.I)
 NON_BUYER_PATH = re.compile(r"/(?:blog|articles?|resources?|learn|academy|guides?|templates?|examples?|news|press|careers?|jobs?|vacancies|positions)(?:/|$)", re.I)
