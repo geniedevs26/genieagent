@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""High-precision public-web discovery and automatic qualification of direct-business requirements.
+"""Global multi-source discovery of explicit paid project requests.
 
-A page qualifies only when the business's own page contains first-person project intent,
-a nearby paid/contract signal, no unpaid/job-listing indicators, and a public contact email.
-This confirms a published business requirement and contact route, not email delivery,
-client acceptance, budget agreement, or an order.
+A lead qualifies only when a buyer-authored source shows a concrete service need, paid intent,
+no unpaid/job/employer signals, and a usable public contact route (business email/contact form
+or an active buyer post that accepts replies). This is not a promise of client acceptance or income.
 """
 import csv, html, json, os, re, time
 from urllib.error import HTTPError
@@ -93,7 +92,7 @@ SKIP_DOMAINS = {
     "thefreedictionary.com","merriam-webster.com","dictionary.com","thesaurus.com",
     "indeed.com","glassdoor.com","ziprecruiter.com","monster.com","simplyhired.com",
     "yelp.com","yellowpages.com","crunchbase.com","zoominfo.com","clutch.co",
-    "upwork.com","fiverr.com","reddit.com","quora.com","medium.com",
+    "upwork.com","fiverr.com","quora.com","medium.com",
     "findrfp.com","rfpdb.com","rfpmart.com","governmentbids.com","sam.gov","hubspot.com",
     "freelancer.com","peopleperhour.com","guru.com","workana.com","toptal.com","bark.com","thumbtack.com",
     "99designs.com","designcrowd.com","truelancer.com","remoteok.com","weworkremotely.com","wellfound.com",
@@ -126,7 +125,7 @@ UNPAID_SIGNAL = re.compile(r"\b(?:unpaid|volunteer|equity only|no budget|not pai
 LOW_QUALITY = re.compile(r"definition of|synonyms|thesaurus|dictionary|meaning of|jobs near|salary|course|tutorial|top 10|best companies|directory|template|examples|how to write|sample|guide|checklist|free download|what is an? |how to create|how to build|step-by-step|ultimate guide|rfp template|proposal template|blog post|case study|\bblog\b|\barticle\b|\bresources?\b|\bwhitepaper\b|\bwebinar\b|\bpress release\b|\bportfolio\b|\bjob description\b|\bcareers?\b|\bhow it works\b", re.I)
 NON_BUYER_PATH = re.compile(r"/(?:blog|articles?|resources?|learn|academy|guides?|templates?|examples?|news|press|careers?|jobs?|vacancies|positions)(?:/|$)", re.I)
 JOB_LISTING = re.compile(r"\b(?:apply now|submit (?:your )?resume|job description|employment type|salary range|career opportunity|job opening|vacancy|job board|job listings|remote job|position available|apply for this job|full[- ]time position|part[- ]time position)\b", re.I)
-DIRECT_INTENT = re.compile(r"\b(?:we(?:'re| are)?|our team|our company|our business|i(?:'m| am)|my company|my business)\b.{0,260}\b(?:looking for|need|seeking|hiring|want to hire|request(?:ing)? a quote)\b", re.I | re.S)
+DIRECT_INTENT = re.compile(r"\b(?:we(?:'re| are)?|our team|our company|our business|i(?:'m| am)|my company|my business)\b.{0,500}\b(?:looking for|need|seeking|hiring|want to hire|request(?:ing)? a quote|need help with)\b", re.I | re.S)
 SUPABASE_URL = "https://irpqaoooosrjhviwdddo.supabase.co"
 
 def get(url, timeout=5, attempts=2):
@@ -175,6 +174,28 @@ def extract_public_phone(text, links):
 def host(url):
     try: return (urlparse(url).hostname or "").lower().removeprefix("www.")
     except Exception: return ""
+
+def fetch_reddit_post(url):
+    """Return buyer-authored Reddit text only when the post is still open for replies."""
+    clean=url.split("?")[0].rstrip("/")
+    if not host(clean).endswith("reddit.com"):
+        return "", False, ""
+    raw=get(clean+".json?raw_json=1",timeout=8,attempts=1)
+    if not raw: return "", False, ""
+    try:
+        data=json.loads(raw)
+        post=data[0]["data"]["children"][0]["data"]
+    except (ValueError,KeyError,IndexError,TypeError):
+        return "", False, ""
+    author=(post.get("author") or "").strip()
+    body=(post.get("selftext") or "").strip()
+    title=(post.get("title") or "").strip()
+    if not author or author in {"[deleted]","[removed]"} or post.get("removed_by_category") or post.get("locked") or post.get("archived"):
+        return "", False, ""
+    if not body or body in {"[deleted]","[removed]"}:
+        return "", False, ""
+    page="<html><head><title>"+html.escape(title)+"</title></head><body><main>"+html.escape(title+" "+body)+"</main></body></html>"
+    return page, True, "Active buyer-authored Reddit post; public reply route verified"
 
 def search(query, page_offset=0):
     results=[]
@@ -316,7 +337,7 @@ def main():
     seen_records=[]
     candidates=[]
     # Inspect substantially more source pages each run; strict qualification still happens on-page.
-    max_checks_per_run=100
+    max_checks_per_run=300
     for title,url,snippet,provider in discovered:
         if stats["pages_checked"]>=max_checks_per_run or len(candidates)>=50: break
         domain=host(url)
@@ -331,7 +352,12 @@ def main():
             stats["pages_skipped_seen"]+=1
             continue
         stats["pages_checked"]+=1
-        page=get(url,timeout=5)
+        reddit_verified=False
+        contact_method=""
+        if domain.endswith("reddit.com"):
+            page,reddit_verified,contact_method=fetch_reddit_post(url)
+        else:
+            page=get(url,timeout=6)
         now=datetime.now(timezone.utc)
         outcome="page_fetch_failed"
         next_check=now+timedelta(days=1)
@@ -360,13 +386,15 @@ def main():
         emails=set(EMAIL_RE.findall(page_text))
         phone=extract_public_phone(page_text,parser.links)
         phone_source=url if phone else ""
-        contact_url=""
+        contact_url=url if reddit_verified else ""
+        contact_form_verified=False
         for href,label in parser.links:
             candidate=urljoin(url,href)
             if host(candidate)!=domain or "contact" not in (href+" "+label).lower(): continue
             contact_html=get(candidate,timeout=4)
             if not contact_html: continue
             contact_url=candidate
+            contact_form_verified=bool(re.search(r"<form\b",contact_html,re.I))
             cp=Links()
             try: cp.feed(contact_html)
             except Exception: pass
@@ -376,12 +404,13 @@ def main():
         emails={e.lower().strip(".,;:") for e in emails if EMAIL_RE.fullmatch(e.lower().strip(".,;:")) and not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com","noreply","no-reply"])}
         email=sorted(emails)[0] if emails else ""
         evidence_excerpt=""
+        contact_verified=bool(email or contact_form_verified or reddit_verified)
         if not on_page_intent:
             outcome="no_explicit_paid_business_request"
-            next_check=now+timedelta(days=30)
-        elif not email:
-            outcome="contact_form_or_email_not_verified"
             next_check=now+timedelta(days=14)
+        elif not contact_verified:
+            outcome="contact_route_not_verified"
+            next_check=now+timedelta(days=7)
         else:
             outcome="qualified_public_request"
             next_check=now+timedelta(days=90)
@@ -397,17 +426,18 @@ def main():
             candidates.append({
                 "company":company,"country":country_for(url,page_text),"contact":"","contact_url":contact_url or url,
                 "email":email,"phone":phone,"phone_source":phone_source,"paidSignal":"Yes","website":url,"source":url,"discovery_method":provider,
+                "contactMethod": "Public email" if email else ("Public contact form" if contact_form_verified else "Public buyer-post reply"),
                 "service":service_for(evidence_excerpt+" "+paid_excerpt),"status":"Qualified lead",
                 "evidence":evidence,
                 "notes":"Automatically qualified from the business's own public page: first-person project requirement, nearby paid/contract signal and a publicly listed contact email. This is not a guarantee of delivery or client acceptance.",
                 "needStage":"Client need confirmed","contactVerified":"Yes","clientNeedConfirmed":"Yes",
                 "needEvidenceUrl":url,"financialApproved":"No","discovered_at":now.isoformat(),
-                "contactVerificationMethod":"Public email displayed on the same business website"
+                "contactVerificationMethod": contact_method or ("Public email displayed on the source website" if email else "Public contact form verified on source website" if contact_form_verified else "Active buyer post accepts public replies")
             })
         if owner_id: seen_records.append({"owner_id":owner_id,"url":normalized,"domain":domain,"source_name":provider,"outcome":outcome,"evidence_excerpt":evidence_excerpt[:500] or None,"checked_at":now.isoformat(),"next_check_at":next_check.isoformat()})
     if key and owner_id:
         save_seen_pages(key,seen_records)
-    cols=["company","country","contact","contact_url","email","paidSignal","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at","contactVerificationMethod","phone","phone_source"]
+    cols=["company","country","contact","contact_url","email","contactMethod","paidSignal","website","source","discovery_method","service","status","evidence","notes","needStage","contactVerified","clientNeedConfirmed","needEvidenceUrl","financialApproved","discovered_at","contactVerificationMethod","phone","phone_source"]
     with open(OUT,"w",newline="",encoding="utf-8-sig") as f:
         w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
         for row in candidates:w.writerow({k:row.get(k,"") for k in cols})
@@ -415,6 +445,6 @@ def main():
     with open("data/research_stats.json","w",encoding="utf-8") as f:
         json.dump(stats,f,ensure_ascii=False)
     print("Diagnostics: "+", ".join(f"{k}={v}" for k,v in stats.items()))
-    print(f"Saved {len(candidates)} automatically verified direct-business leads. Unverified pages remain excluded from the private lead pipeline.")
+    print(f"Saved {len(candidates)} verified paid-project buyer requests with a public email, contact form, or active reply path. Unverified pages remain excluded from the private lead pipeline.")
 
 if __name__=="__main__": main()
