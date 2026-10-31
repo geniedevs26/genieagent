@@ -13,7 +13,7 @@ Owner-only client acquisition automation: persistent public research, automatic 
 3. The page must be on the business's own website and expose a public business email. The research worker checks the contact page, then records the page URL, evidence excerpt, provider and next recheck time in the private research_pages table.
 4. Research cursor state is persistent. Recently checked pages are skipped; fetch failures are retried sooner; non-matching pages are rechecked later. Search therefore progresses beyond the same first 40 results on every run.
 5. Only automatically verified direct-business requirements with a public same-site email enter leads as qualified. Unverified pages and contact-form-only pages are not treated as qualified email leads.
-6. The system sends a relevant initial inquiry automatically. Up to three follow-ups may be sent on days 5, 12 and 21 after the initial email, only when inbox monitoring is configured and no reply, bounce or opt-out has been detected. A reply, bounce or opt-out stops further follow-up; after day 21 the lead is paused. SMTP acceptance is never described as confirmed delivery.
+6. Prospect outreach is kept disabled by default. The system must not send an initial email or follow-up until the owner has reviewed and explicitly approved that exact message. The reply monitor continues to process inbound messages, bounces and opt-outs; SMTP acceptance is never described as confirmed delivery.
 7. A client reply requesting a quote/proposal creates a private client-order opportunity and a pending financial-proposal approval. The system does not send a proposal at this point.
 
 ## Owner approval after client interest
@@ -48,7 +48,7 @@ For inbox reply/bounce, AI email replies and client-stage monitoring:
 - IMAP_PASSWORD
 - Optional IMAP_FOLDER (normally INBOX)
 
-These credentials belong only in GitHub Actions Secrets. Do not paste them into chat or commit them. AUTO_OUTREACH_ENABLED is set by the workflow after the qualification and suppression gates; it is not a repository secret.
+These credentials belong only in GitHub Actions Secrets. Do not paste them into chat or commit them. AUTO_OUTREACH_ENABLED is explicitly false in the workflow. Do not change it to true without the owner explicitly authorizing outbound prospect emails and follow-ups.
 
 ## Calling
 Automatic AI phone calling is not connected. A compliant PSTN calling route is required to reach ordinary mobile/landline numbers; browser/WebRTC software alone does not provide free PSTN minutes. No genuinely zero-cost provider with verified ongoing India outbound calling has been found, and no paid provider is configured. No call is claimed as placed.
