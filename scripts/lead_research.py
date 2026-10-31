@@ -135,6 +135,7 @@ INTENT = re.compile(
     r"(?:web designer|web developer|chatbot|automation|designer|writer|translator|app developer|"
     r"wordpress developer|shopify developer|website builder|excel specialist)|"
     r"looking to hire (?:a |an )?(?:web|software|app|wordpress|shopify|chatbot|automation|graphic) developer|"
+    r"(?:we are |we're |i am |i'm )?hiring (?:a |an )?(?:web|software|app|wordpress|shopify|chatbot|automation|graphic) developer|"
     r"(?:website redesign|web development|app development|chatbot development|automation) project inquiry|"
     r"developer wanted|chatbot developer wanted|automation consultant wanted|freelancer needed|"
     r"designer needed|writer needed|translator needed|website redesign project",
@@ -398,6 +399,8 @@ def main():
         intent_probe=INTENT.search(page_text)
         paid_probe=PAID_SIGNAL.search(page_text)
         direct_probe=DIRECT_INTENT.search(page_text)
+        if reddit_verified and re.search(r"\\[(?:hiring|paid)\\]",page_text[:500],re.I):
+            direct_probe=True
         on_page_intent=bool(intent_probe and paid_probe and direct_probe
             and abs(intent_probe.start()-paid_probe.start())<=600
             and not UNPAID_SIGNAL.search(page_text[:12000])
