@@ -157,7 +157,7 @@ for item in [
         fail(f"missing outbound safety/logging gate: {item}")
 
 for item in [
-    "OPTOUT_RE","PROPOSAL_REQUEST_RE","ORDER_ACCEPT_RE","AGREEMENT_ACCEPT_RE","scope_intake_reply_text","if not order and not order_accept:","Automated mailbox response ignored to prevent reply loops","hourly rate|fixed price","emails.update(EMAIL_RE.findall(page))",
+    "OPTOUT_RE","PROPOSAL_REQUEST_RE","ORDER_ACCEPT_RE","AGREEMENT_ACCEPT_RE","scope_intake_reply_text","if not order and not order_accept:","Automated mailbox response ignored to prevent reply loops","hourly rate|fixed price",
     "FINAL_ACCEPT_RE","create_or_advance_order","create_stage_request","if not order and not order_accept:","if not order and order_accept:",
     "financial_proposal_send","agreement_send","project_start","order_close",
     'mail.search(None,"SINCE",since,"FROM",',"search_senders=set(sent_by_recipient)|{\"mailer-daemon\",\"postmaster\"}","recent[-100:]","stable_id",
@@ -215,6 +215,8 @@ if 'AUTO_OUTREACH_ENABLED: "true"' not in workflow:
     fail("owner-authorized automatic prospect outreach must be enabled")
 if '"lead_status":"in.(qualified,research)"' not in outreach:
     fail("automatic outreach must process both paid-confirmed leads and budget-unconfirmed buyer prospects")
+if "emails.update(EMAIL_RE.findall(page))" not in research:
+    fail("research must extract public email addresses from page markup")
 if "if reddit_verified and intent_probe:" not in research:
     fail("buyer-authored social requests must not be rejected by website-only direct-intent checks")
 if "python scripts/execute_approved_actions.py" not in workflow:
