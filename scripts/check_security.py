@@ -103,7 +103,7 @@ for item in [
     "https://hn.algolia.com/api/v1/search_by_date",
     '"tags":"story"',
     "potential_request=bool(intent_probe and direct_probe and not paid_probe",
-    "contact_verified=bool(email)",
+    "contact_verified=bool(email or contact_form_verified or reddit_verified)",
     '"contactMethod": "Public email"',
     'site:reddit.com/r/forhire [Hiring] web developer paid project',
     '"paidSignal":"Yes" if paid_request else "Unconfirmed"',
