@@ -103,7 +103,7 @@ for item in [
     "https://hn.algolia.com/api/v1/search_by_date",
     '"tags":"story"',
     "potential_request=bool(intent_probe and direct_probe and not paid_probe",
-    "contact_verified=bool(email or contact_form_verified or reddit_verified)",
+    "contact_verified=bool(email or contact_form_verified or social_verified)",
     '"contactMethod": "Public email"',
     'site:reddit.com/r/forhire [Hiring] web developer paid project',
     '"paidSignal":"Yes" if paid_request else "Unconfirmed"',
@@ -221,13 +221,13 @@ if 'return ""' not in research or '"service":matched_service' not in research:
     fail("requests outside supported service categories must be excluded")
 if "emails.update(EMAIL_RE.findall(page))" not in research:
     fail("research must extract public email addresses from page markup")
-if "if reddit_verified and intent_probe:" not in research:
+if "if social_verified and intent_probe:" not in research:
     fail("buyer-authored social requests must not be rejected by website-only direct-intent checks")
 if "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts" not in research or "https://hn.algolia.com/api/v1/search_by_date" not in research:
     fail("public API discovery sources must remain enabled")
 if "for query in QUERIES + COUNTRY_TARGETED_QUERIES:" in research:
     fail("unstable search-engine HTML scraping must not be part of scheduled discovery")
-if "contact_verified=bool(email or contact_form_verified or reddit_verified)" not in research:
+if "contact_verified=bool(email or contact_form_verified or social_verified)" not in research:
     fail("verified email, contact form, and active buyer reply routes must enter research CRM")
 if "'ignored'" not in (ROOT/"supabase/migrations/20261031143000_allow_ignored_inbox_state.sql").read_text(encoding="utf-8"):
     fail("inbox autoresponder ignored state must be allowed by the database constraint")
