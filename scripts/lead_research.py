@@ -196,7 +196,8 @@ def get(url, timeout=5, attempts=2):
                 return r.read(800_000).decode("utf-8", "ignore")
         except Exception as exc:
             if attempt == attempts - 1:
-                print(f"Request failed after {attempts} attempt(s): {urlparse(url).netloc} ({type(exc).__name__})")
+                detail=(f"HTTP {exc.code}" if isinstance(exc,HTTPError) else type(exc).__name__)
+                print(f"Request failed after {attempts} attempt(s): {urlparse(url).netloc} ({detail})")
             else:
                 time.sleep(1 + attempt)
     return ""
@@ -368,6 +369,25 @@ def discover_social_requests():
                 page="<html><head><title>"+html.escape(title or "Hacker News buyer request")+"</title></head><body><main>"+html.escape(combined)+"</main></body></html>"
                 SOCIAL_PAGE_CACHE[url]=(page,True,"Recent buyer-authored Hacker News story with an open discussion")
                 found.append((title or "Hacker News buyer request",url,combined[:700],"Hacker News Algolia public story API")); metrics["hn_paid_buyer_posts"]+=1
+        else: metrics["api_failures"]+=1
+        # Buyer-authored comments can contain direct paid requests even when the parent story is unrelated.
+        comment_url="https://hn.algolia.com/api/v1/search_by_date?"+urllib.parse.urlencode({"query":query,"tags":"comment","numericFilters":"created_at_i>"+str(int(cutoff.timestamp())),"hitsPerPage":30})
+        raw=get(comment_url,timeout=12,attempts=1); metrics["hn_requests"]+=1
+        if raw:
+            try: comments=json.loads(raw).get("hits",[])
+            except (ValueError,AttributeError): comments=[]
+            metrics["hn_stories_seen"]+=len(comments)
+            for hit in comments:
+                body=html.unescape(re.sub(r"<[^>]+>"," ",hit.get("comment_text") or ""))
+                combined=re.sub(r"\\s+"," ",body).strip()
+                author=(hit.get("author") or "").strip(); story_id=str(hit.get("story_id") or "")
+                if not author or not story_id: continue
+                if not INTENT.search(combined) or not PAID_SIGNAL.search(combined): continue
+                if UNPAID_SIGNAL.search(combined) or LOW_QUALITY.search(combined) or JOB_LISTING.search(combined): continue
+                url="https://news.ycombinator.com/item?id="+story_id
+                page="<html><head><title>Hacker News buyer comment</title></head><body><main>"+html.escape(combined)+"</main></body></html>"
+                SOCIAL_PAGE_CACHE[url]=(page,True,"Recent buyer-authored Hacker News comment with a public discussion reply path")
+                found.append(("Hacker News buyer comment",url,combined[:700],"Hacker News Algolia public comment API")); metrics["hn_paid_buyer_posts"]+=1
         else: metrics["api_failures"]+=1
     print("Public API discovery: "+", ".join(f"{k}={v}" for k,v in metrics.items()))
     unique={item[1]:item for item in found}
