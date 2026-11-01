@@ -94,7 +94,7 @@ for item in [
     "load_seen_urls(key,owner_id)",
     "save_seen_pages(key,seen_records)",
     "next_check_at",
-    "for query in QUERIES:",
+    "for query in QUERIES + COUNTRY_TARGETED_QUERIES:",
     "ThreadPoolExecutor",
     "def fetch_reddit_post(url):",
     "contact_form_verified",
