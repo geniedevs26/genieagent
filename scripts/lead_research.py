@@ -575,12 +575,12 @@ def main():
             stats["pages_skipped_seen"]+=1
             continue
         stats["pages_checked"]+=1
-        reddit_verified=False
+        social_verified=False
         contact_method=""
         if normalized in SOCIAL_PAGE_CACHE:
-            page,reddit_verified,contact_method=SOCIAL_PAGE_CACHE[normalized]
+            page,social_verified,contact_method=SOCIAL_PAGE_CACHE[normalized]
         elif domain.endswith("reddit.com"):
-            page,reddit_verified,contact_method=fetch_reddit_post(url)
+            page,social_verified,contact_method=fetch_reddit_post(url)
         else:
             page=get(url,timeout=6)
         now=datetime.now(timezone.utc)
@@ -606,7 +606,7 @@ def main():
         # Social cache entries are buyer-authored posts/comments, not publisher pages.
         # The explicit first-person requirement matcher is sufficient to establish intent;
         # do not require a second website-style phrase match that drops genuine requests.
-        if reddit_verified and intent_probe:
+        if social_verified and intent_probe:
             direct_probe=True
         paid_request=bool(intent_probe and paid_probe and direct_probe
             and abs(intent_probe.start()-paid_probe.start())<=600
@@ -625,7 +625,7 @@ def main():
         emails.update(re.findall(r"mailto:([^\\\"'<>? ]+)",page,re.I))
         phone=extract_public_phone(page_text,parser.links)
         phone_source=url if phone else ""
-        contact_url=url if reddit_verified else ""
+        contact_url=url if social_verified else ""
         contact_form_verified=False
         for href,label in parser.links:
             candidate=urljoin(url,href)
@@ -643,7 +643,7 @@ def main():
         emails={e.lower().strip(".,;:") for e in emails if EMAIL_RE.fullmatch(e.lower().strip(".,;:")) and not any(x in e.lower() for x in ["example.com","domain.com","wixpress.com","sentry.io","cloudflare.com","noreply","no-reply"])}
         email=sorted(emails)[0] if emails else ""
         evidence_excerpt=""
-        contact_verified=bool(email or contact_form_verified or reddit_verified)
+        contact_verified=bool(email or contact_form_verified or social_verified)
         if not on_page_intent:
             outcome="no_explicit_paid_business_request"
             next_check=now+timedelta(days=14)
