@@ -94,9 +94,9 @@ for item in [
     "load_seen_urls(key,owner_id)",
     "save_seen_pages(key,seen_records)",
     "next_check_at",
-    "for query in QUERIES + COUNTRY_TARGETED_QUERIES:",
-    "ThreadPoolExecutor",
-    "def fetch_reddit_post(url):",
+    "def discover_social_requests():",
+    "Public API discovery:",
+    "numericFilters",
     "contact_form_verified",
     "SOCIAL_PAGE_CACHE = {}",
     "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts",
@@ -211,8 +211,8 @@ for path in ROOT.rglob("*"):
         if re.search(pattern,content):
             fail(f"possible secret material detected in {path.relative_to(ROOT)}")
 
-if 'AUTO_OUTREACH_ENABLED: "true"' not in workflow:
-    fail("owner-authorized automatic prospect outreach must be enabled")
+if 'AUTO_OUTREACH_ENABLED: "false"' not in workflow:
+    fail("outreach must remain draft-only until each message receives owner approval")
 if '"lead_status":"eq.qualified"' not in outreach:
     fail("automatic outreach must process only paid-confirmed qualified leads")
 if 'payload.get("paidSignal")!="Yes"' not in outreach:
@@ -223,6 +223,10 @@ if "emails.update(EMAIL_RE.findall(page))" not in research:
     fail("research must extract public email addresses from page markup")
 if "if reddit_verified and intent_probe:" not in research:
     fail("buyer-authored social requests must not be rejected by website-only direct-intent checks")
+if "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts" not in research or "https://hn.algolia.com/api/v1/search_by_date" not in research:
+    fail("public API discovery sources must remain enabled")
+if "for query in QUERIES + COUNTRY_TARGETED_QUERIES:" in research:
+    fail("unstable search-engine HTML scraping must not be part of scheduled discovery")
 if "contact_verified=bool(email or contact_form_verified or reddit_verified)" not in research:
     fail("verified email, contact form, and active buyer reply routes must enter research CRM")
 if "'ignored'" not in (ROOT/"supabase/migrations/20261031143000_allow_ignored_inbox_state.sql").read_text(encoding="utf-8"):
