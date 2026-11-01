@@ -313,53 +313,65 @@ def fetch_reddit_post(url):
 SOCIAL_PAGE_CACHE = {}
 
 def discover_social_requests():
-    """Search public no-key APIs for buyer-authored posts with an existing reply path."""
+    """Use public no-key APIs only; retain recent buyer-authored paid requests with reply paths."""
     found=[]
+    cutoff=datetime.now(timezone.utc)-timedelta(days=30)
     queries=[
         "looking for web developer", "need website developer", "hiring web developer budget",
         "need WordPress developer", "looking for Shopify developer", "need chatbot developer",
         "looking for automation developer", "paid Excel project", "need Android app developer",
         "looking for graphic designer project", "need Telugu translator", "website redesign budget",
-        "looking for technical writer", "need landing page designer",
+        "looking for technical writer", "need landing page designer", "paid website redesign",
+        "developer project budget", "looking for freelance developer",
     ]
+    metrics={"bluesky_requests":0,"bluesky_posts_seen":0,"bluesky_paid_buyer_posts":0,"hn_requests":0,"hn_stories_seen":0,"hn_paid_buyer_posts":0,"api_failures":0}
     for query in queries:
-        bsky_url="https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?"+urllib.parse.urlencode({"q":query,"limit":30,"sort":"latest"})
+        bsky_url="https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?"+urllib.parse.urlencode({"q":query,"limit":50,"sort":"latest"})
         raw=get(bsky_url,timeout=12,attempts=1)
+        metrics["bluesky_requests"]+=1
         if raw:
             try: posts=json.loads(raw).get("posts",[])
             except (ValueError,AttributeError): posts=[]
+            metrics["bluesky_posts_seen"]+=len(posts)
             for item in posts:
-                post=item.get("post") or {}
-                record=post.get("record") or {}
-                author=post.get("author") or {}
-                body=(record.get("text") or "").strip()
-                handle=(author.get("handle") or "").strip()
-                uri=post.get("uri") or ""
+                post=item.get("post") or {}; record=post.get("record") or {}; author=post.get("author") or {}
+                body=(record.get("text") or "").strip(); handle=(author.get("handle") or "").strip(); uri=post.get("uri") or ""
+                created=record.get("createdAt") or post.get("indexedAt") or ""
                 if not body or not handle or not uri: continue
+                try:
+                    posted=datetime.fromisoformat(created.replace("Z","+00:00"))
+                    if posted < cutoff: continue
+                except (ValueError,TypeError,AttributeError): continue
+                clean=re.sub(r"\\s+"," ",body).strip()
+                if not INTENT.search(clean) or not PAID_SIGNAL.search(clean): continue
+                if UNPAID_SIGNAL.search(clean) or LOW_QUALITY.search(clean) or JOB_LISTING.search(clean): continue
                 url=f"https://bsky.app/profile/{handle}/post/{uri.rsplit('/',1)[-1]}"
-                page="<html><head><title>"+html.escape(handle)+" — public buyer request</title></head><body><main>"+html.escape(body)+"</main></body></html>"
-                SOCIAL_PAGE_CACHE[url]=(page,True,"Public Bluesky post with existing replies; public reply route")
-                found.append(("Bluesky buyer post",url,body[:700],"Bluesky public search API"))
-        hn_url="https://hn.algolia.com/api/v1/search_by_date?"+urllib.parse.urlencode({"query":query,"tags":"story","hitsPerPage":30})
-        raw=get(hn_url,timeout=12,attempts=1)
+                page="<html><head><title>"+html.escape(handle)+" — public buyer request</title></head><body><main>"+html.escape(clean)+"</main></body></html>"
+                SOCIAL_PAGE_CACHE[url]=(page,True,"Recent buyer-authored Bluesky post; public reply route")
+                found.append(("Bluesky buyer request",url,clean[:700],"Bluesky public search API")); metrics["bluesky_paid_buyer_posts"]+=1
+        else: metrics["api_failures"]+=1
+        hn_url="https://hn.algolia.com/api/v1/search_by_date?"+urllib.parse.urlencode({"query":query,"tags":"story","numericFilters":"created_at_i>"+str(int(cutoff.timestamp())),"hitsPerPage":50})
+        raw=get(hn_url,timeout=12,attempts=1); metrics["hn_requests"]+=1
         if raw:
             try: hits=json.loads(raw).get("hits",[])
             except (ValueError,AttributeError): hits=[]
+            metrics["hn_stories_seen"]+=len(hits)
             for hit in hits:
-                body=html.unescape(re.sub(r"<[^>]+>"," ",hit.get("story_text") or ""))
-                body=re.sub(r"\s+"," ",body).strip()
                 title=html.unescape((hit.get("title") or "").strip())
-                author=(hit.get("author") or "").strip()
-                item_id=str(hit.get("objectID") or "")
-                if not author or not item_id: continue
-                combined=re.sub(r"\s+"," ",title+" "+body).strip()
-                if not INTENT.search(combined): continue
+                body=html.unescape(re.sub(r"<[^>]+>"," ",hit.get("story_text") or ""))
+                combined=re.sub(r"\\s+"," ",title+" "+body).strip()
+                author=(hit.get("author") or "").strip(); item_id=str(hit.get("objectID") or "")
+                if not author or not item_id or int(hit.get("num_comments") or 0)<1: continue
+                if not INTENT.search(combined) or not PAID_SIGNAL.search(combined): continue
+                if UNPAID_SIGNAL.search(combined) or LOW_QUALITY.search(combined) or JOB_LISTING.search(combined): continue
                 url="https://news.ycombinator.com/item?id="+item_id
                 page="<html><head><title>"+html.escape(title or "Hacker News buyer request")+"</title></head><body><main>"+html.escape(combined)+"</main></body></html>"
-                SOCIAL_PAGE_CACHE[url]=(page,True,"Buyer-authored Hacker News story with an active discussion")
-                found.append((title or "Hacker News buyer request",url,combined[:700],"Hacker News Algolia public story API"))
+                SOCIAL_PAGE_CACHE[url]=(page,True,"Recent buyer-authored Hacker News story with an open discussion")
+                found.append((title or "Hacker News buyer request",url,combined[:700],"Hacker News Algolia public story API")); metrics["hn_paid_buyer_posts"]+=1
+        else: metrics["api_failures"]+=1
+    print("Public API discovery: "+", ".join(f"{k}={v}" for k,v in metrics.items()))
     unique={item[1]:item for item in found}
-    return list(unique.values())
+    return list(unique.values()),metrics
 
 def search(query, page_offset=0):
     results=[]
@@ -508,18 +520,14 @@ def main():
     page_offset=datetime.now(timezone.utc).hour % 10
     stats={"search_page_offset":page_offset,"queries":0,"search_results":0,"empty_searches":0,"pages_checked":0,"pages_skipped_seen":0,"page_failures":0,"qualified_pages":0,"potential_pages":0,"new_candidates":0}
     discovered=[]
-    reddit_results=discover_reddit_requests()
-    stats["reddit_buyer_posts_found"]=len(reddit_results)
-    discovered.extend(reddit_results)
-    social_results=discover_social_requests()
+    # Discovery uses structured public APIs; unstable search-engine HTML scraping is not scheduled.
+    social_results,api_metrics=discover_social_requests()
+    stats.update(api_metrics)
+    stats["queries"]=api_metrics["bluesky_requests"]
+    stats["search_results"]=api_metrics["bluesky_posts_seen"]+api_metrics["hn_stories_seen"]
+    stats["reddit_buyer_posts_found"]=0
     stats["social_buyer_posts_found"]=len(social_results)
     discovered.extend(social_results)
-    for query in QUERIES + COUNTRY_TARGETED_QUERIES:
-        stats["queries"]+=1
-        results=search(query,page_offset)
-        stats["search_results"]+=len(results)
-        if not results: stats["empty_searches"]+=1
-        discovered.extend(results)
     def region_rank(item):
         d=host(item[1])
         context=(item[0]+" "+item[2]).lower()
