@@ -105,6 +105,39 @@ QUERIES = [
     'site:reddit.com/r/forhire "paid" "website redesign" hiring',
     'site:reddit.com/r/forhire "budget" "web app" hiring',
 ]
+
+# Country-targeted buyer-intent searches broaden discovery beyond generic global terms.
+# These are discovery queries only; the existing original-page, paid-intent and contact
+# verification gates remain mandatory before a record can enter the qualified CRM.
+SERVICE_QUERY_SEEDS = [
+    '"website redesign" small business project',
+    '"web application" developer project budget',
+    '"AI chatbot" business implementation project',
+    '"workflow automation" consultant project',
+    '"Android app" development project quote',
+    '"Excel automation" business project',
+    '"Telugu translation" paid project',
+    '"technical writing" business project quote',
+    '"logo design" business project budget',
+    '"website maintenance" monthly contract',
+]
+GEO_QUERY_SUFFIXES = [
+    '"United States" OR USA',
+    '"United Kingdom" OR UK',
+    'Australia',
+    'Canada',
+    'New Zealand',
+    'United Arab Emirates OR UAE',
+    'Europe',
+    'Singapore',
+    'South Africa',
+    'India',
+]
+COUNTRY_TARGETED_QUERIES = [
+    seed + " " + region
+    for seed in SERVICE_QUERY_SEEDS
+    for region in GEO_QUERY_SUFFIXES
+]
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
 REDDIT_FEEDS = ("forhire-web","forhire-website","forhire-chatbot","forhire-automation","forhire-excel","freelanceindia-web","freelanceindia-chatbot","done-dirt-cheap-web","wordpress-jobs","design-jobs-web","android-jobs-app")
 REDDIT_POST_CACHE = {}
@@ -481,7 +514,7 @@ def main():
     social_results=discover_social_requests()
     stats["social_buyer_posts_found"]=len(social_results)
     discovered.extend(social_results)
-    for query in QUERIES:
+    for query in QUERIES + COUNTRY_TARGETED_QUERIES:
         stats["queries"]+=1
         results=search(query,page_offset)
         stats["search_results"]+=len(results)
