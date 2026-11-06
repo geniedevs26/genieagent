@@ -1,0 +1,215 @@
+{
+  "name": "GenieAgent – owner-approved outreach (manual)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "0a1b2c3d-2222-4a02-9bbb-000000000001",
+      "name": "Owner starts send",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "There is intentionally no schedule trigger. A person must start this workflow."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign-confirm",
+              "name": "confirm",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "assign-limit",
+              "name": "limit",
+              "value": "5",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0a1b2c3d-2222-4a02-9bbb-000000000002",
+      "name": "Confirmation",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "Type SEND APPROVED DRAFTS into 'confirm'. Leave limit low for the first run."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-confirm",
+              "leftValue": "={{ $json.confirm }}",
+              "rightValue": "SEND APPROVED DRAFTS",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0a1b2c3d-2222-4a02-9bbb-000000000003",
+      "name": "Confirmed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "Confirmation text did not match. No messages were sent."
+      },
+      "id": "0a1b2c3d-2222-4a02-9bbb-000000000004",
+      "name": "Refuse to send",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        720,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd \"$HOME/genieagent\" && python scripts/pipeline_sync.py --direction pull",
+        "executeOnce": true
+      },
+      "id": "0a1b2c3d-2222-4a02-9bbb-000000000005",
+      "name": "Read owner approvals",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        720,
+        -140
+      ],
+      "notes": "Pulls the Google Sheets Outreach tab so approvals recorded there are used."
+    },
+    {
+      "parameters": {
+        "command": "cd \"$HOME/genieagent\" && python scripts/pipeline_send.py --execute --limit 5",
+        "executeOnce": true
+      },
+      "id": "0a1b2c3d-2222-4a02-9bbb-000000000006",
+      "name": "Send approved drafts",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        960,
+        -140
+      ],
+      "notes": "Re-checks every safety gate per message. Requires OUTREACH_SEND_ENABLED=true and approval_status=approved."
+    },
+    {
+      "parameters": {
+        "command": "cd \"$HOME/genieagent\" && python scripts/pipeline_sync.py --direction push && python scripts/pipeline_report.py && python scripts/pipeline_track.py --brevo",
+        "executeOnce": true
+      },
+      "id": "0a1b2c3d-2222-4a02-9bbb-000000000007",
+      "name": "Record results and refresh report",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        -140
+      ],
+      "notes": "Push delivery records, refresh the redacted dashboard, and poll Brevo events when BREVO_API_KEY is set."
+    }
+  ],
+  "connections": {
+    "Owner starts send": {
+      "main": [
+        [
+          {
+            "node": "Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Confirmed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmed?": {
+      "main": [
+        [
+          {
+            "node": "Read owner approvals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Refuse to send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read owner approvals": {
+      "main": [
+        [
+          {
+            "node": "Send approved drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send approved drafts": {
+      "main": [
+        [
+          {
+            "node": "Record results and refresh report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "pinData": {},
+  "active": false,
+  "versionId": "genieagent-approved-outreach-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

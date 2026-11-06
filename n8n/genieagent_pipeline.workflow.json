@@ -1,0 +1,178 @@
+{
+  "name": "GenieAgent – scheduled research pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "0a1b2c3d-1111-4a01-9aaa-000000000001",
+      "name": "Every 6 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "Research, enrichment, qualification, drafting and reporting. Never sends outreach."
+    },
+    {
+      "parameters": {
+        "command": "cd \"$HOME/genieagent\" && python scripts/run_pipeline.py --stages import,discover,enrich,qualify,draft,followups,sync,report --limit 25",
+        "executeOnce": true
+      },
+      "id": "0a1b2c3d-1111-4a01-9aaa-000000000002",
+      "name": "Run pipeline (no sending)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ],
+      "notes": "Uses the .env in the repository directory. Sending stays disabled because OUTREACH_SEND_ENABLED is false by default."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-exit-code",
+              "leftValue": "={{ $json.exitCode }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0a1b2c3d-1111-4a01-9aaa-000000000003",
+      "name": "Pipeline failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "GenieAgent pipeline failed. Read the previous node output (stdout/stderr). No outreach was sent by this workflow."
+      },
+      "id": "0a1b2c3d-1111-4a01-9aaa-000000000004",
+      "name": "Stop with error",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        760,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd \"$HOME/genieagent\" && python scripts/pipeline_sync.py --direction both && python scripts/pipeline_report.py",
+        "executeOnce": true
+      },
+      "id": "0a1b2c3d-1111-4a01-9aaa-000000000005",
+      "name": "Sync sheets and refresh report",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        760,
+        -140
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0a1b2c3d-1111-4a01-9aaa-000000000006",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1020,
+        -140
+      ]
+    }
+  ],
+  "connections": {
+    "Every 6 hours": {
+      "main": [
+        [
+          {
+            "node": "Run pipeline (no sending)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run pipeline (no sending)": {
+      "main": [
+        [
+          {
+            "node": "Pipeline failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pipeline failed?": {
+      "main": [
+        [
+          {
+            "node": "Sync sheets and refresh report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop with error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync sheets and refresh report": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "pinData": {},
+  "active": false,
+  "versionId": "genieagent-pipeline-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

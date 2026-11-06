@@ -1,0 +1,8 @@
+# GenieAgent runtime intentionally uses the Python standard library only, so
+# every script runs on Android/Termux without compiling native wheels.
+#
+# Optional extras (not required):
+#   google-auth  -> only if you authenticate Google Sheets with a service account
+#
+# Install nothing for the default OAuth refresh-token setup.
+# Example: pip install google-auth

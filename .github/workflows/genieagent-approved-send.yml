@@ -1,0 +1,110 @@
+name: GenieAgent approved outreach
+
+# Manual-only sender. It can deliver ONLY drafts whose approval_status is
+# "approved" in the private Google Sheet / outreach.csv, with an approver and
+# timestamp recorded. There is no schedule trigger on purpose.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type exactly: SEND APPROVED DRAFTS'
+        required: true
+        type: string
+      limit:
+        description: "Maximum drafts to send in this run"
+        required: false
+        default: "5"
+      unattended:
+        description: "Mark as unattended (additionally requires AUTO_OUTREACH_ENABLED=true)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: genieagent-approved-send
+  cancel-in-progress: false
+
+jobs:
+  send:
+    name: Send owner-approved drafts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GENIE_ENV: github-actions
+      GENIE_DRY_RUN: "false"
+      # Repository variable, not a secret, so the owner can see the switch.
+      OUTREACH_SEND_ENABLED: ${{ vars.OUTREACH_SEND_ENABLED || 'false' }}
+      WHATSAPP_SEND_ENABLED: ${{ vars.WHATSAPP_SEND_ENABLED || 'false' }}
+      AUTO_OUTREACH_ENABLED: ${{ vars.AUTO_OUTREACH_ENABLED || 'false' }}
+      GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
+      GENIE_OWNER_NAME: ${{ vars.GENIE_OWNER_NAME }}
+      GENIE_PORTFOLIO_URL: ${{ vars.GENIE_PORTFOLIO_URL }}
+      OUTREACH_MIN_SCORE: ${{ vars.OUTREACH_MIN_SCORE }}
+      OUTREACH_DAILY_LIMIT: ${{ vars.OUTREACH_DAILY_LIMIT }}
+      SUPPRESSED_EMAILS: ${{ secrets.SUPPRESSED_EMAILS }}
+
+      GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+      GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+      GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+      BREVO_SMTP_HOST: ${{ vars.BREVO_SMTP_HOST }}
+      BREVO_SMTP_PORT: ${{ vars.BREVO_SMTP_PORT }}
+      BREVO_SMTP_LOGIN: ${{ secrets.BREVO_SMTP_LOGIN }}
+      BREVO_SMTP_KEY: ${{ secrets.BREVO_SMTP_KEY }}
+      BREVO_SENDER_EMAIL: ${{ vars.BREVO_SENDER_EMAIL }}
+      BREVO_SENDER_NAME: ${{ vars.BREVO_SENDER_NAME }}
+
+      WHATSAPP_PROVIDER: ${{ vars.WHATSAPP_PROVIDER }}
+      WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+      WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+      WHATSAPP_TEMPLATE_NAME: ${{ vars.WHATSAPP_TEMPLATE_NAME }}
+      WHATSAPP_TEMPLATE_LANG: ${{ vars.WHATSAPP_TEMPLATE_LANG }}
+      GREEN_API_ID_INSTANCE: ${{ secrets.GREEN_API_ID_INSTANCE }}
+      GREEN_API_TOKEN: ${{ secrets.GREEN_API_TOKEN }}
+
+    steps:
+      - name: Refuse to run without explicit confirmation
+        if: inputs.confirm != 'SEND APPROVED DRAFTS'
+        run: |
+          echo "::error::Confirmation text did not match. No messages were sent."
+          exit 1
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Pull approvals from Google Sheets
+        run: python scripts/pipeline_sync.py --direction pull --summary-title "Approval sync (pull)"
+
+      - name: Send approved drafts only
+        run: |
+          ARGS="--execute --limit ${{ inputs.limit }}"
+          if [ "${{ inputs.unattended }}" = "true" ]; then
+            ARGS="$ARGS --unattended"
+          fi
+          python scripts/pipeline_send.py $ARGS --summary-title "Owner-approved send"
+
+      - name: Push delivery records back to Google Sheets
+        if: always()
+        run: python scripts/pipeline_sync.py --direction push --summary-title "Delivery records (push)"
+
+      - name: Refresh redacted dashboard snapshot
+        if: always()
+        run: python scripts/pipeline_report.py --summary-title "Dashboard snapshot"
+
+      - name: Upload send audit (no contact details)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: send-audit
+          path: data/dashboard.json
+          retention-days: 30

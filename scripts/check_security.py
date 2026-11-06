@@ -242,6 +242,135 @@ if 'PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"' not in outreach:
 if 'NON_BUYER_PUBLISHERS = {"hubspot.com"}' not in outreach:
     fail("known non-buyer publisher block missing")
 
-print("PASS: authenticated CRM, direct-buyer research, remote job discovery, private job sync, owner-controlled outreach, and per-stage approval gates.")
+# ---------------------------------------------------------------- new architecture
+# Apollo/Hunter/Gemini/Google Sheets/Brevo/WhatsApp pipeline safety regression.
+def read(relative: str) -> str:
+    path = ROOT / relative
+    if not path.exists():
+        fail(f"missing required file: {relative}")
+    return path.read_text(encoding="utf-8")
+
+config_src = read("genieagent/config.py")
+drafts_src = read("genieagent/outreach/drafts.py")
+whatsapp_src = read("genieagent/outreach/whatsapp.py")
+pipeline_src = read("genieagent/pipeline.py")
+send_script = read("scripts/pipeline_send.py")
+scheduled = read(".github/workflows/genieagent-pipeline.yml")
+manual_send = read(".github/workflows/genieagent-approved-send.yml")
+gitignore = read(".gitignore")
+env_example = read(".env.example")
+
+for item in [
+    "outreach_send_enabled: bool = False",
+    "auto_outreach_enabled: bool = False",
+    "whatsapp_send_enabled: bool = False",
+    'DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"',
+    '"gemini-1."',
+    '"automatic_outreach": False',
+]:
+    if item not in config_src:
+        fail(f"new pipeline safety default missing from config: {item}")
+
+for item in [
+    "def approval_gate(",
+    "Draft approval_status is",
+    "Draft has no approver recorded",
+    "Draft has no approval timestamp",
+    "OUTREACH_SEND_ENABLED is false; sending is disabled",
+    "Unattended sending requires AUTO_OUTREACH_ENABLED=true",
+    "Email status '",
+    "email_verified_at",
+    "Another draft for this lead and channel was already sent",
+    "WhatsApp outreach requires one",
+    "Meta Cloud API requires an approved template",
+    "def prepare_drafts(",
+]:
+    if item not in drafts_src:
+        fail(f"per-message owner approval gate missing: {item}")
+
+for item in [
+    "requires an approved message template for first contact",
+    "def send_template(",
+    "waInstance",
+    "graph.facebook.com",
+    "mask_phone",
+]:
+    if item not in whatsapp_src:
+        fail(f"WhatsApp provider safety/consent requirement missing: {item}")
+
+for item in [
+    "def stage_send(",
+    "OUTREACH_SEND_ENABLED is false. Approved drafts stay queued",
+    "AUTO_OUTREACH_ENABLED is false; unattended sending is disabled",
+    "def redact_pii(",
+    "mask_email",
+]:
+    if item not in pipeline_src:
+        fail(f"pipeline send/privacy gate missing: {item}")
+
+if '"--execute"' not in send_script or "not args.execute" not in send_script:
+    fail("pipeline_send.py must require --execute before contacting anyone")
+
+for item in [
+    'OUTREACH_SEND_ENABLED: "false"',
+    'AUTO_OUTREACH_ENABLED: "false"',
+    'WHATSAPP_SEND_ENABLED: "false"',
+    "python scripts/run_pipeline.py",
+]:
+    if item not in scheduled:
+        fail(f"scheduled pipeline must never send: {item}")
+
+if "workflow_dispatch" not in manual_send:
+    fail("approved outreach workflow must be manually dispatched")
+if "\n  schedule:" in manual_send:
+    fail("approved outreach workflow must not have a schedule trigger")
+for item in ["SEND APPROVED DRAFTS", "--execute", "pipeline_send.py"]:
+    if item not in manual_send:
+        fail(f"approved outreach workflow confirmation gate missing: {item}")
+
+for item in ["data/leads.csv", "data/outreach.csv", ".env"]:
+    if item not in gitignore:
+        fail(f"private lead/credential file must be gitignored: {item}")
+
+for name in ("APOLLO_API_KEY=", "HUNTER_API_KEY=", "GEMINI_API_KEY=", "BREVO_SMTP_KEY=", "GOOGLE_OAUTH_REFRESH_TOKEN="):
+    match = re.search(r"(?m)^" + re.escape(name) + r"\s*$", env_example)
+    if not match:
+        fail(f"environment template must leave {name.rstrip('=')} empty")
+
+n8n_dir = ROOT / "n8n"
+if not n8n_dir.is_dir() or not any(n8n_dir.glob("*.workflow.json")):
+    fail("importable n8n workflow definitions are required")
+for path in n8n_dir.glob("*.workflow.json"):
+    source = path.read_text(encoding="utf-8")
+    if "approved" in path.name and "scheduleTrigger" in source:
+        fail(f"manual outreach n8n workflow must not be schedulable: {path.name}")
+
+import json as _json
+
+dashboard_path = ROOT / "data/dashboard.json"
+if not dashboard_path.exists():
+    fail("data/dashboard.json must exist for the GitHub Pages dashboard")
+dashboard_text = dashboard_path.read_text(encoding="utf-8")
+try:
+    dashboard_payload = _json.loads(dashboard_text)
+except ValueError:
+    fail("data/dashboard.json must be valid JSON")
+for email in re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", dashboard_text):
+    if "*" not in email:
+        fail("published dashboard data must not contain full email addresses")
+if '"phone_business"' in dashboard_text or '"phone"' in dashboard_text:
+    fail("published dashboard data must not contain phone numbers")
+if dashboard_payload.get("safety", {}).get("automatic_outreach") is not False:
+    fail("dashboard must state that automatic outreach is disabled")
+
+for path in [ROOT / "dashboard.html", ROOT / "assets/dashboard.js", ROOT / "assets/dashboard.css"]:
+    if not path.exists():
+        fail(f"GitHub Pages dashboard asset missing: {path.name}")
+
+print(
+    "PASS: authenticated CRM, buyer research, Apollo/Hunter/Gemini pipeline, "
+    "Google Sheets sync, owner-approved outreach, disabled-by-default automation, "
+    "privacy-safe dashboard and static security checks."
+)
 
 # Regression policy is maintained alongside the research-first qualification workflow.

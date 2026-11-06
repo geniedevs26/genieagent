@@ -1,0 +1,26 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Local lead databases can contain personal data: never commit them
+data/leads.csv
+data/outreach.csv
+data/activity.csv
+data/*.lock
+data/*.bak
+data/research_stats.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Local static build output
+_site/
+artifacts/

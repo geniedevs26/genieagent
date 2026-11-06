@@ -1,77 +1,159 @@
 # GenieAgent
 
-Owner-only client acquisition automation: persistent public research, automatic qualification of direct-business requirements, initial outreach, up to three bounded reply-aware follow-ups, client-response monitoring, and stage-by-stage owner approval for every post-interest project action.
+Business lead discovery, email verification, AI qualification and **owner-approved**
+outreach — built to run on Android/Termux, GitHub Actions and n8n.
 
-## Live app and source
-- Live dashboard: https://genieagent.pages.dev/
-- Repository: https://github.com/geniedevs26/genieagent
-- Scheduled workflow: https://github.com/geniedevs26/genieagent/actions/workflows/daily-lead-research.yml
+* Live legacy owner desk: <https://genieagent.pages.dev/>
+* Repository: <https://github.com/geniedevs26/genieagent>
+* GitHub Pages dashboard: deploy `dashboard.html` with `.github/workflows/pages.yml` (see below)
+* Architecture and audit: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-## Automated prospecting workflow
-1. GitHub Actions runs hourly (cron 17 * * * *).
-2. Public search snippets are discovery hints only. The source page must contain first-person business intent, a nearby paid/contract signal, and no job-board/unpaid indicators.
-3. The page must be on the business's own website and expose a public business email. The research worker checks the contact page, then records the page URL, evidence excerpt, provider and next recheck time in the private research_pages table.
-4. Research cursor state is persistent. Recently checked pages are skipped; fetch failures are retried sooner; non-matching pages are rechecked later. Search therefore progresses beyond the same first 40 results on every run.
-5. Only automatically verified direct-business requirements with a public same-site email enter leads as qualified. Unverified pages and contact-form-only pages are not treated as qualified email leads.
-6. The owner has authorized automatic, individually composed first-contact emails and up to three reply-aware follow-ups for verified buyer requests. The scheduled workflow enables this with `AUTO_OUTREACH_ENABLED: true`; it sends only to a public, verified email address, never to a guessed address. Only requests with explicit paid/contract intent and a verified public same-site email are eligible for automatic outreach. Budget-unconfirmed and otherwise unverified research remains separate and is not emailed. Inbox monitoring runs before follow-up eligibility; replies, bounces and opt-outs stop inappropriate follow-ups. SMTP acceptance is never described as confirmed delivery.
-7. A buyer reply requesting a quote/proposal creates a private client-order opportunity and a pending financial-proposal approval. Price, payment terms, binding agreement and other financial/legal commitments remain blocked until the owner approves them.
+## Safety first
 
-## Owner approval after client interest
-Every post-interest stage has a separate approval request in the dashboard's Orders & approvals view:
+* **Automatic outreach is disabled by default.** `OUTREACH_SEND_ENABLED=false`,
+  `AUTO_OUTREACH_ENABLED=false`, `WHATSAPP_SEND_ENABLED=false`.
+* **Every message needs a per-message owner approval** recorded in the private
+  Google Sheet (or with `scripts/pipeline_approve.py`), including approver email
+  and timestamp.
+* **Unverified contacts are never contacted.** Only Hunter `valid` emails with a
+  verification timestamp are eligible; `accept_all` and `unknown` are stored but
+  blocked.
+* **No personal mobile numbers** are published or messaged; WhatsApp requires a
+  business number plus a recorded consent basis.
+* **No secrets in git.** Credentials come from environment variables / GitHub
+  Secrets; `.env` and lead CSVs are gitignored; static checks scan for key patterns.
 
-1. **Financial proposal:** complete the financial review (scope, budget, amount, all costs, net profit, payment terms and current pricing evidence), edit the exact proposal, then approve. The hourly executor sends only after both financial review and stage approval pass.
-2. **Agreement:** after the client accepts the proposal, an agreement draft is queued. Edit and approve before it is sent.
-3. **Project start:** after the client accepts the agreement, a separate start approval is queued. The project does not advance until approved.
-4. **Milestone delivery:** upload the deliverable to a location you control, enter the URL and message, then approve before the email is sent.
-5. **Final delivery:** same separate upload, review and approval gate.
-6. **Order closure:** after the client explicitly accepts final delivery, a closure approval is queued. The order is marked completed only after owner approval.
+## Architecture
 
-An approval click queues execution for the next hourly workflow run; it does not itself send the message. If a required financial field or document placeholder remains incomplete, execution is blocked. Ambiguous SMTP failures are held for review and are not retried automatically.
+```
+Apollo ──► normalise/dedupe ──► Hunter (find + verify) ──► Gemini (score + draft)
+                                                              │
+Google Sheets (primary) ◄──────────── leads.csv / outreach.csv ◄┘
+        │                              (local backup + export)
+        ▼
+owner approval ──► Brevo SMTP (email) / Meta Cloud API or Green API (WhatsApp)
+        │
+        ▼
+tracking (replies, bounces, opt-outs, follow-ups, orders) ──► data/dashboard.json
+                                                                   │
+                                                            GitHub Pages dashboard
+```
 
-## Required GitHub Actions secrets
-For private Supabase sync and research cursor:
-- SUPABASE_SERVICE_ROLE_KEY
-- GENIE_OWNER_EMAIL
+| Requirement | Implementation |
+| --- | --- |
+| Apollo lead/company discovery | `scripts/pipeline_discover.py` |
+| Hunter email discovery + verification | `scripts/pipeline_enrich.py` |
+| Gemini analysis/qualification/personalization | current model `gemini-3.8-flash`, `scripts/pipeline_qualify.py`, `scripts/pipeline_draft.py` |
+| n8n orchestration | `n8n/*.workflow.json`, [docs/N8N_IMPORT.md](docs/N8N_IMPORT.md) |
+| Google Sheets primary database | `genieagent/storage/sheets.py`, [docs/GOOGLE_SHEETS_SETUP.md](docs/GOOGLE_SHEETS_SETUP.md) |
+| `leads.csv` local/export backup | `scripts/pipeline_sync.py`, `genieagent/storage/csv_store.py` |
+| Brevo SMTP delivery | `genieagent/outreach/brevo.py` |
+| WhatsApp adapters | `genieagent/outreach/whatsapp.py`, [docs/WHATSAPP.md](docs/WHATSAPP.md) |
+| Termux scripts | standard library only, [docs/SETUP_TERMUX.md](docs/SETUP_TERMUX.md) |
+| GitHub Actions schedules | [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md) |
+| GitHub Pages dashboard | `dashboard.html`, `assets/`, `data/dashboard.json` |
 
-For initial outreach, follow-up and approved-stage emails:
-- SMTP_HOST
-- SMTP_PORT (normally 587)
-- SMTP_USERNAME
-- SMTP_PASSWORD (provider app password/credential)
-- GENIE_SENDER_EMAIL
-- Optional SUPPRESSED_EMAILS (comma-separated addresses that must never be contacted)\n\nFor bounded AI email replies (Cloudflare Workers AI free allocation):\n- CLOUDFLARE_AI_ACCOUNT_ID\n- CLOUDFLARE_AI_API_TOKEN (Workers AI API token with Workers AI Read permission; keep only in GitHub Actions Secrets)\n\nWorkers AI currently includes 10,000 Neurons/day on the Free Workers plan. GenieAgent caps itself at three low-risk AI replies per UTC day. Keep the Cloudflare account on the Free plan and do not add paid credits or upgrade. If the daily free allocation is exhausted, AI replies fail closed and are held.
+## Quick start (Termux or Linux)
 
-For inbox reply/bounce, AI email replies and client-stage monitoring:
-- IMAP_HOST
-- IMAP_PORT (normally 993)
-- IMAP_USERNAME
-- IMAP_PASSWORD
-- Optional IMAP_FOLDER (normally INBOX)
+```bash
+pkg install -y python git          # Termux
+git clone https://github.com/geniedevs26/genieagent.git
+cd genieagent
+cp .env.example .env               # add your credentials, never commit .env
 
-These credentials belong only in GitHub Actions Secrets. Do not paste them into chat or commit them. The owner has authorized automatic prospect inquiries and bounded follow-ups; the workflow sets AUTO_OUTREACH_ENABLED=true. Do not enable calls, payments, binding agreements or financial commitments without the separate required setup and owner approval.
+python scripts/pipeline_import.py --limit 20
+python scripts/pipeline_discover.py --limit 10
+python scripts/pipeline_enrich.py --limit 10
+python scripts/pipeline_qualify.py --limit 10
+python scripts/pipeline_draft.py --limit 10
+python scripts/pipeline_sync.py --direction both
+python scripts/pipeline_report.py
+```
 
-## Calling
-Automatic AI phone calling is not connected. A compliant PSTN calling route is required to reach ordinary mobile/landline numbers; browser/WebRTC software alone does not provide free PSTN minutes. No genuinely zero-cost provider with verified ongoing India outbound calling has been found, and no paid provider is configured. No call is claimed as placed.
+Or one command:
 
-## Security and records
-- Supabase RLS restricts CRM, orders, approval requests and research cursor records to the owner.
-- Candidate and client details are not committed to this public repository or uploaded as workflow artifacts.
-- automation_events records research, outreach, replies, bounces, approvals and stage transitions.
-- A public email address and a published requirement are evidence of a contact route and stated need, not a guarantee of email delivery, available budget or an accepted order.
-- Opt-outs and detected bounces suppress future automated outreach.
-- Research prefers zero results to invented or weak leads.
+```bash
+python scripts/run_pipeline.py --limit 10
+```
 
-## Run locally
-~~~bash
-python scripts/lead_research.py
-python scripts/sync_candidates_supabase.py
-python scripts/inbox_monitor.py
-python scripts/auto_outreach.py
-python scripts/execute_approved_actions.py
-~~~
+Review and approve drafts:
 
-Cloudflare Pages uses framework preset None, no build command, and / as the output directory. A new commit deploys when the Pages Git integration is active.
+```bash
+python scripts/pipeline_approve.py --list
+python scripts/pipeline_approve.py --approve <draft_id> --yes
+```
 
+Send deliberately (after setting `OUTREACH_SEND_ENABLED=true`):
 
-## Optional AI email replies
-See [AI reply setup](docs/AI_REPLY_SETUP.md) for the optional, guarded Cloudflare Workers AI responder, daily cap, and one-time GitHub Secrets configuration.
+```bash
+python scripts/pipeline_send.py --execute --limit 1
+```
+
+## Required credentials
+
+| Purpose | Variables |
+| --- | --- |
+| Apollo | `APOLLO_API_KEY` (+ `APOLLO_KEYWORD_TAGS`, `APOLLO_LOCATIONS` to define your ICP) |
+| Hunter | `HUNTER_API_KEY` |
+| Gemini | `GEMINI_API_KEY`, `GEMINI_MODEL` (default `gemini-3.8-flash`) |
+| Google Sheets | `GOOGLE_SHEETS_ID` + (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN`) or `GOOGLE_SERVICE_ACCOUNT_JSON` |
+| Brevo SMTP | `BREVO_SMTP_LOGIN`, `BREVO_SMTP_KEY`, `BREVO_SENDER_EMAIL` (optional `BREVO_API_KEY` for delivery events) |
+| Owner identity | `GENIE_OWNER_EMAIL`, `GENIE_OWNER_NAME`, `GENIE_PORTFOLIO_URL` |
+| WhatsApp (optional) | `WHATSAPP_PROVIDER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_TEMPLATE_NAME` or `GREEN_API_ID_INSTANCE`, `GREEN_API_TOKEN` |
+
+All names and safe defaults are in [.env.example](.env.example). Gemini 1.5
+models are retired; the code rejects them with a clear error.
+
+## GitHub Actions
+
+* **GenieAgent pipeline** — every 6 hours: research, verification, qualification,
+  drafting, Sheets sync, dashboard snapshot. Sending is hard-disabled.
+* **GenieAgent approved outreach** — manual dispatch only, requires the exact
+  confirmation text and `OUTREACH_SEND_ENABLED=true`.
+* **Deploy GitHub Pages dashboard** — publishes the redacted dashboard.
+
+Enable Pages: Settings → Pages → Source: **GitHub Actions**. Full secrets and
+variables tables: [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md).
+
+## Tests
+
+```bash
+python -m unittest discover -s tests -t .
+python scripts/check_security.py
+python -m compileall -q genieagent scripts
+```
+
+The 95-test suite is offline (fake providers, fake SMTP, in-memory Sheets), so
+passing tests never imply that a live provider call succeeded.
+
+---
+
+## Legacy owner system (unchanged)
+
+The repository also contains the original owner-authenticated Supabase/Cloudflare
+pipeline. It still runs independently of the new Google Sheets pipeline:
+
+* `scripts/lead_research.py` — hourly public buyer-request research (Bluesky,
+  Hacker News, Reddit RSS) with strict evidence and contact gates.
+* `scripts/sync_candidates_supabase.py` — owner-only CRM sync.
+* `scripts/inbox_monitor.py` — IMAP reply/bounce/opt-out handling and guarded
+  AI replies.
+* `scripts/auto_outreach.py` — only drafts by default. The scheduled workflow
+  passes `AUTO_OUTREACH_ENABLED: "false"`; outreach requires approval.
+* `scripts/execute_approved_actions.py` — proposal/agreement/delivery stages only
+  after explicit owner approval.
+* `index.html` — Supabase-authenticated owner desk (also served as `/owner.html`
+  by the GitHub Pages build).
+* `.github/workflows/daily-lead-research.yml`,
+  `.github/workflows/remote-job-research.yml`,
+  `.github/workflows/static-security-checks.yml`.
+
+Legacy secrets: `SUPABASE_SERVICE_ROLE_KEY`, `GENIE_OWNER_EMAIL`, `SMTP_*`,
+`IMAP_*`, optional `CLOUDFLARE_AI_*`. Do not enable automated first-contact
+sending in that system either: the required policy for this repository is that
+no email or WhatsApp message leaves without an owner approval.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full audit,
+[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for fixes, and
+[docs/AI_REPLY_SETUP.md](docs/AI_REPLY_SETUP.md) for the optional legacy AI
+responder.

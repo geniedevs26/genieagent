@@ -1,0 +1,80 @@
+name: Deploy GitHub Pages dashboard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dashboard.html"
+      - "assets/**"
+      - "data/dashboard.json"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build static site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Assemble publish directory (dashboard only)
+        run: |
+          set -euo pipefail
+          mkdir -p _site/data _site/assets
+          cp dashboard.html _site/index.html
+          cp assets/dashboard.css assets/dashboard.js _site/assets/
+          cp data/dashboard.json _site/data/dashboard.json
+          # Owner dashboard is published as a separate page; lead data is not copied.
+          cp index.html _site/owner.html
+          cp auto-leads.html _site/research.html
+          if [ -f _headers ]; then cp _headers _site/_headers; fi
+          if [ -f 404.html ]; then cp 404.html _site/404.html; fi
+          du -sh _site
+          find _site -maxdepth 2 -type f | sort
+
+      - name: Verify no secrets or contact details before publishing
+        run: |
+          python - <<'PY'
+          import re, pathlib, sys
+          root = pathlib.Path("_site")
+          text = (root / "data" / "dashboard.json").read_text(encoding="utf-8")
+          for email in re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text):
+              if "*" not in email:
+                  sys.exit("Refusing to publish: full email address in dashboard data")
+          patterns = [r"-----BEGIN .*PRIVATE KEY-----", r"xoxb-[A-Za-z0-9-]+", r"sk-[A-Za-z0-9]{20,}"]
+          for path in root.rglob("*"):
+              if not path.is_file() or path.suffix.lower() in {".png", ".jpg", ".jpeg", ".ico", ".woff", ".woff2"}:
+                  continue
+              content = path.read_text(encoding="utf-8", errors="ignore")
+              for pattern in patterns:
+                  if re.search(pattern, content):
+                      sys.exit(f"Refusing to publish: possible credential in {path}")
+          print("Publish check passed: no credentials, no full email addresses.")
+          PY
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

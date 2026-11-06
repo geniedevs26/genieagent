@@ -1,0 +1,103 @@
+{
+  "generated_at": "2026-11-06T11:54:12Z",
+  "safety": {
+    "apollo_configured": false,
+    "hunter_configured": false,
+    "gemini_configured": false,
+    "gemini_model": "gemini-3.8-flash",
+    "google_sheets_configured": false,
+    "google_sheets_auth_mode": "none",
+    "brevo_smtp_configured": false,
+    "whatsapp_provider": "none",
+    "whatsapp_configured": false,
+    "outreach_send_enabled": false,
+    "whatsapp_send_enabled": false,
+    "auto_outreach_enabled": false,
+    "automatic_outreach": false,
+    "owner_email_configured": false,
+    "whatsapp": {
+      "provider": "none",
+      "configured": false
+    },
+    "banner": "Automatic outreach is disabled. Every message requires owner approval; only verified contacts are eligible."
+  },
+  "totals": {
+    "leads": 0,
+    "verified_emails": 0,
+    "qualified": 0,
+    "drafts_pending_approval": 0,
+    "drafts_approved": 0,
+    "messages_sent": 0,
+    "send_failures": 0,
+    "replies": 0,
+    "bounces": 0,
+    "opt_outs": 0,
+    "orders": 0,
+    "rejected": 0,
+    "needs_review": 0
+  },
+  "orders": {
+    "none": 0,
+    "interested": 0,
+    "proposal_pending": 0,
+    "proposal_approved": 0,
+    "in_progress": 0,
+    "delivered": 0,
+    "closed": 0,
+    "lost": 0
+  },
+  "by_country": {},
+  "by_service": {},
+  "leads": [],
+  "drafts": [],
+  "activity": [
+    {
+      "timestamp": "2026-11-06T11:53:14Z",
+      "event_type": "import_skipped",
+      "status": "skipped",
+      "summary": "data/research_candidates.csv is empty."
+    },
+    {
+      "timestamp": "2026-11-06T11:53:14Z",
+      "event_type": "discover_skipped",
+      "status": "skipped",
+      "summary": "APOLLO_API_KEY is not configured; Apollo discovery skipped."
+    },
+    {
+      "timestamp": "2026-11-06T11:53:14Z",
+      "event_type": "enrich_skipped",
+      "status": "skipped",
+      "summary": "HUNTER_API_KEY is not configured; email enrichment skipped."
+    },
+    {
+      "timestamp": "2026-11-06T11:53:14Z",
+      "event_type": "qualify_skipped",
+      "status": "skipped",
+      "summary": "GEMINI_API_KEY is not configured; AI qualification skipped."
+    },
+    {
+      "timestamp": "2026-11-06T11:53:14Z",
+      "event_type": "draft_skipped",
+      "status": "skipped",
+      "summary": "GEMINI_API_KEY is not configured; drafting skipped."
+    },
+    {
+      "timestamp": "2026-11-06T11:53:14Z",
+      "event_type": "sync_skipped",
+      "status": "skipped",
+      "summary": "Google Sheets is not configured; leads.csv remains the local source of truth."
+    },
+    {
+      "timestamp": "2026-11-06T11:53:14Z",
+      "event_type": "report_completed",
+      "status": "ok",
+      "summary": "Dashboard data exported"
+    },
+    {
+      "timestamp": "2026-11-06T11:36:42Z",
+      "event_type": "report_completed",
+      "status": "ok",
+      "summary": "Dashboard data exported"
+    }
+  ]
+}

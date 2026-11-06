@@ -1,0 +1,153 @@
+name: GenieAgent pipeline
+
+# Scheduled research -> enrichment -> qualification -> draft -> Sheets sync -> report.
+# This workflow NEVER sends outreach: sending is disabled here explicitly and can
+# only happen through the manual "GenieAgent approved outreach" workflow.
+
+on:
+  schedule:
+    # Every 6 hours, off the top of the hour to avoid provider peak limits.
+    - cron: "41 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      stages:
+        description: "Comma-separated stages"
+        required: false
+        default: "import,discover,enrich,qualify,draft,followups,sync,report"
+      direction:
+        description: "Google Sheets sync direction"
+        type: choice
+        options: [both, pull, push]
+        default: both
+      limit:
+        description: "Maximum records per stage"
+        required: false
+        default: "25"
+
+permissions:
+  contents: write # only to commit the redacted dashboard snapshot
+
+concurrency:
+  group: genieagent-pipeline
+  cancel-in-progress: false
+
+jobs:
+  research:
+    name: Research and qualify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GENIE_ENV: github-actions
+      # Hard safety: scheduled work can never contact anyone.
+      OUTREACH_SEND_ENABLED: "false"
+      AUTO_OUTREACH_ENABLED: "false"
+      WHATSAPP_SEND_ENABLED: "false"
+      GENIE_MAX_LEADS_PER_RUN: "50"
+      GENIE_REQUEST_PAUSE: "1.5"
+
+      APOLLO_API_KEY: ${{ secrets.APOLLO_API_KEY }}
+      APOLLO_KEYWORD_TAGS: ${{ vars.APOLLO_KEYWORD_TAGS }}
+      APOLLO_LOCATIONS: ${{ vars.APOLLO_LOCATIONS }}
+      APOLLO_EMPLOYEE_RANGES: ${{ vars.APOLLO_EMPLOYEE_RANGES }}
+      APOLLO_PAGES: ${{ vars.APOLLO_PAGES }}
+      APOLLO_PER_PAGE: ${{ vars.APOLLO_PER_PAGE }}
+
+      HUNTER_API_KEY: ${{ secrets.HUNTER_API_KEY }}
+      HUNTER_DOMAIN_LIMIT: ${{ vars.HUNTER_DOMAIN_LIMIT }}
+
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+
+      GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+      GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+      GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+      GENIE_OWNER_EMAIL: ${{ secrets.GENIE_OWNER_EMAIL }}
+      GENIE_OWNER_NAME: ${{ vars.GENIE_OWNER_NAME }}
+      GENIE_PORTFOLIO_URL: ${{ vars.GENIE_PORTFOLIO_URL }}
+      OUTREACH_MIN_SCORE: ${{ vars.OUTREACH_MIN_SCORE }}
+      SUPPRESSED_EMAILS: ${{ secrets.SUPPRESSED_EMAILS }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile and run offline tests
+        run: |
+          python -m compileall -q genieagent scripts
+          python -m unittest discover -s tests -t .
+
+      - name: Run pipeline (no sending)
+        env:
+          STAGES: ${{ inputs.stages || 'import,discover,enrich,qualify,draft,followups,sync,report' }}
+          DIRECTION: ${{ inputs.direction || 'both' }}
+          LIMIT: ${{ inputs.limit || '25' }}
+        run: |
+          python scripts/run_pipeline.py \
+            --stages "$STAGES" \
+            --direction "$DIRECTION" \
+            --limit "$LIMIT" \
+            --summary-title "GenieAgent scheduled pipeline run"
+
+      - name: Verify the dashboard snapshot contains no contact details
+        run: |
+          python - <<'PY'
+          import json, re, sys
+          path = "data/dashboard.json"
+          try:
+              with open(path, encoding="utf-8") as handle:
+                  text = handle.read()
+          except OSError:
+              sys.exit("Dashboard snapshot was not generated.")
+          emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
+          full_emails = [email for email in emails if "*" not in email]
+          if full_emails:
+              sys.exit("Refusing to publish: full email address found in dashboard.json")
+          if re.search(r"\"phone(?:_business)?\"", text):
+              sys.exit("Refusing to publish: phone field found in dashboard.json")
+          print("Dashboard snapshot is privacy-safe.")
+          PY
+
+      - name: Upload redacted dashboard snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-snapshot
+          path: data/dashboard.json
+          retention-days: 14
+
+      - name: Commit redacted dashboard snapshot
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if git diff --quiet -- data/dashboard.json; then
+            echo "No dashboard change to commit."
+            exit 0
+          fi
+          git config user.name "GenieAgent Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/dashboard.json
+          git commit -m "Update redacted dashboard snapshot [skip ci]"
+          git push
+
+      - name: Report safe summary
+        if: always()
+        run: |
+          {
+            echo "## GenieAgent run"
+            echo ""
+            echo "- Sending: disabled in this workflow"
+            echo "- Contacts: only Hunter-verified business emails become eligible for approval"
+            echo "- Lead data: kept in the private Google Sheet; only the redacted snapshot is committed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Annotate failure for quick triage
+        if: failure()
+        run: echo "::error::GenieAgent pipeline failed. Check the step summary and logs; no outreach was sent by this workflow."
