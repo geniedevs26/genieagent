@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <?!= include('Stylesheet'); ?>
+  </head>
+  <body>
+    <div class="app">
+      <header class="head">
+        <div class="brand"><span class="mark"></span>GenieAgent approvals</div>
+        <p class="sub">Review drafts here. Nothing on this screen sends a message.</p>
+      </header>
+
+      <div id="banner" class="banner hidden" role="status"></div>
+
+      <nav class="tabs" role="tablist">
+        <button id="tab-review" class="tab active" role="tab" aria-selected="true">
+          Pending <span id="pending-count" class="pill">0</span>
+        </button>
+        <button id="tab-settings" class="tab" role="tab" aria-selected="false">Settings</button>
+      </nav>
+
+      <main id="view-review" class="view">
+        <div class="toolbar">
+          <span id="sheet-name" class="muted">Loading…</span>
+          <button id="refresh" class="ghost" type="button">Refresh</button>
+        </div>
+        <div id="list" class="list" aria-live="polite">
+          <div class="empty">Loading drafts…</div>
+        </div>
+      </main>
+
+      <section id="view-settings" class="view hidden">
+        <div class="field">
+          <label for="owner-email">Owner email</label>
+          <input id="owner-email" type="email" inputmode="email" autocomplete="off" placeholder="owner@example.com">
+        </div>
+        <button id="save-owner" class="primary" type="button">Save owner email</button>
+        <p class="hint">
+          Use the same address as <code>GENIE_OWNER_EMAIL</code>. Every approval is recorded under it, and the
+          sender refuses drafts approved by anyone else.
+        </p>
+
+        <dl id="setup-facts" class="facts"></dl>
+
+        <div class="note">
+          <strong>This sidebar cannot send.</strong>
+          Delivery requires <code>pipeline_send.py --execute</code> with <code>OUTREACH_SEND_ENABLED=true</code>.
+        </div>
+      </section>
+
+      <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+    </div>
+    <?!= include('JavaScript'); ?>
+  </body>
+</html>

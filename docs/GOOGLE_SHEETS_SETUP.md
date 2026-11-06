@@ -77,7 +77,10 @@ hour and is not suitable for schedules.
 * Writes preserve columns you add by hand and clear stale trailing rows.
 * Approval is read from the `Outreach` tab: edit `approval_status` to `approved`
   and fill `approved_by` (must equal `GENIE_OWNER_EMAIL`) and `approved_at`.
-  The scripts never approve anything themselves.
+  The scripts never approve anything themselves. The optional
+  [Apps Script sidebar](../apps_script/README.md) writes exactly these cells
+  from inside the spreadsheet, under a document lock, and appends
+  `draft_approved` / `draft_rejected` to `Activity`. It cannot send.
 * Local delivery facts (`sent_at`, `provider_message_id`, `delivery_status`,
   `failure_reason`) survive the merge even if the sheet row is older.
 

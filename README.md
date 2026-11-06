@@ -76,7 +76,7 @@ Or one command:
 python scripts/run_pipeline.py --limit 10
 ```
 
-Review and approve drafts:
+Review and approve drafts (CLI, or the [Google Sheets sidebar](apps_script/README.md)):
 
 ```bash
 python scripts/pipeline_approve.py --list

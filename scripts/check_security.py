@@ -203,7 +203,7 @@ secret_patterns=[
 for path in ROOT.rglob("*"):
     if not path.is_file() or ".git" in path.parts or any(part in {".github"} for part in path.parts):
         continue
-    if path.suffix.lower() not in {".html",".js",".ts",".py",".json",".yml",".yaml",".toml",".md"}:
+    if path.suffix.lower() not in {".html",".js",".gs",".ts",".py",".json",".yml",".yaml",".toml",".md"}:
         continue
     try: content=path.read_text(encoding="utf-8")
     except (UnicodeDecodeError,OSError): continue
@@ -367,10 +367,36 @@ for path in [ROOT / "dashboard.html", ROOT / "assets/dashboard.js", ROOT / "asse
     if not path.exists():
         fail(f"GitHub Pages dashboard asset missing: {path.name}")
 
+# ------------------------------------------------- Apps Script approval sidebar
+# The sidebar may record a decision but must never be able to deliver a message.
+for name in ("Code.gs", "Logic.gs", "Sidebar.html", "Stylesheet.html", "JavaScript.html", "appsscript.json"):
+    if not (ROOT / "apps_script" / name).exists():
+        fail(f"Apps Script approval sidebar file missing: {name}")
+
+sidebar_sources = [read(f"apps_script/{name}") for name in ("Code.gs", "Logic.gs", "JavaScript.html")]
+for source in sidebar_sources:
+    if re.search(r"\b(MailApp|GmailApp|UrlFetchApp|sendEmail|sendMail)\b", source):
+        fail("the approval sidebar must not contain any message-sending capability")
+if "if (!state.ownerEmail)" not in sidebar_sources[0]:
+    fail("the sidebar must refuse to record a decision without an owner email")
+if "LockService.getDocumentLock()" not in sidebar_sources[0]:
+    fail("sidebar decisions must be serialised with a document lock")
+if "decisionBlocker(" not in sidebar_sources[0] or "function decisionBlocker(" not in sidebar_sources[1]:
+    fail("sidebar approvals must pass the shared decision blocker")
+if "approval_status: APPROVAL_APPROVED" not in sidebar_sources[1]:
+    fail("sidebar must write the canonical approved status")
+if "draft_approved" not in sidebar_sources[0] or "draft_rejected" not in sidebar_sources[0]:
+    fail("sidebar decisions must be recorded in the activity log")
+sidebar_manifest = _json.loads(read("apps_script/appsscript.json"))
+if "https://www.googleapis.com/auth/spreadsheets.currentonly" not in sidebar_manifest.get("oauthScopes", []):
+    fail("the sidebar manifest must request only the current spreadsheet")
+if "https://www.googleapis.com/auth/spreadsheets" in sidebar_manifest.get("oauthScopes", []):
+    fail("the sidebar must not request full spreadsheet access")
+
 print(
     "PASS: authenticated CRM, buyer research, Apollo/Hunter/Gemini pipeline, "
-    "Google Sheets sync, owner-approved outreach, disabled-by-default automation, "
-    "privacy-safe dashboard and static security checks."
+    "Google Sheets sync, owner-approved outreach (CLI and Apps Script sidebar), "
+    "disabled-by-default automation, privacy-safe dashboard and static security checks."
 )
 
 # Regression policy is maintained alongside the research-first qualification workflow.

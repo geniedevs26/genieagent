@@ -1,0 +1,368 @@
+<script>
+  var state = {
+    loaded: false,
+    drafts: [],
+    info: null,
+    busy: false,
+    rejectOpen: {}
+  };
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) {
+      node.className = className;
+    }
+    if (text !== undefined && text !== null) {
+      node.textContent = String(text);
+    }
+    return node;
+  }
+
+  function toast(message, kind) {
+    var node = document.getElementById('toast');
+    node.textContent = message;
+    node.className = 'toast' + (kind ? ' ' + kind : '');
+    window.clearTimeout(toast.timer);
+    toast.timer = window.setTimeout(function () {
+      node.className = 'toast hidden';
+    }, 6000);
+  }
+
+  function banner(message, ok) {
+    var node = document.getElementById('banner');
+    if (!message) {
+      node.className = 'banner hidden';
+      node.textContent = '';
+      return;
+    }
+    node.textContent = message;
+    node.className = 'banner' + (ok ? ' ok' : '');
+  }
+
+  function shortDate(value) {
+    if (!value) {
+      return 'unknown date';
+    }
+    var date = new Date(value);
+    if (isNaN(date.getTime())) {
+      return String(value);
+    }
+    return date.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function chip(label, className) {
+    return el('span', 'badge' + (className ? ' ' + className : ''), label);
+  }
+
+  function renderDrafts() {
+    var list = document.getElementById('list');
+    list.textContent = '';
+    document.getElementById('pending-count').textContent = String(state.drafts.length);
+
+    if (!state.drafts.length) {
+      var empty = el('div', 'empty');
+      empty.appendChild(el('div', null, 'No drafts are waiting for approval.'));
+      var hint = el('div', null, 'Run pipeline_draft.py to queue new drafts, then refresh.');
+      hint.style.marginTop = '6px';
+      empty.appendChild(hint);
+      list.appendChild(empty);
+      return;
+    }
+
+    state.drafts.forEach(function (draft) {
+      list.appendChild(renderCard(draft));
+    });
+  }
+
+  function renderCard(draft) {
+    var card = el('article', 'card');
+    card.setAttribute('data-draft-id', draft.draftId);
+
+    var top = el('div', 'card-top');
+    var title = el('div');
+    title.appendChild(el('div', 'company', draft.company || draft.leadId || 'Unknown lead'));
+    title.appendChild(el('div', 'lead-id', draft.leadId || ''));
+    var badges = el('div', 'badges');
+    badges.appendChild(chip(draft.channel || 'channel', draft.channel === 'whatsapp' ? 'whatsapp' : 'email'));
+    if (draft.followUpOf) {
+      badges.appendChild(chip('follow-up', 'followup'));
+    }
+    if (draft.qualificationScore) {
+      badges.appendChild(chip('score ' + draft.qualificationScore));
+    }
+    title.appendChild(badges);
+    top.appendChild(title);
+    card.appendChild(top);
+
+    var meta = el('div', 'row');
+    meta.appendChild(el('b', null, 'To: '));
+    meta.appendChild(document.createTextNode(draft.recipientMasked || 'masked recipient unavailable'));
+    meta.appendChild(document.createTextNode('  ·  ' + shortDate(draft.createdAt)));
+    card.appendChild(meta);
+
+    if (draft.subject) {
+      card.appendChild(el('div', 'subject', draft.subject));
+    }
+
+    var details = el('details');
+    details.appendChild(el('summary', null, 'Show message'));
+    details.appendChild(el('pre', 'body', draft.body || '(empty body)'));
+    card.appendChild(details);
+
+    if (draft.warnings && draft.warnings.length) {
+      var warnings = el('ul', 'warn');
+      draft.warnings.forEach(function (warning) {
+        warnings.appendChild(el('li', null, warning));
+      });
+      card.appendChild(warnings);
+    }
+
+    var actions = el('div', 'actions');
+    var approve = el('button', 'primary', 'Approve');
+    approve.type = 'button';
+    approve.addEventListener('click', function () {
+      approveDraft(draft, approve);
+    });
+    var reject = el('button', 'danger', 'Reject');
+    reject.type = 'button';
+    reject.addEventListener('click', function () {
+      toggleReject(draft, card, reject);
+    });
+    actions.appendChild(approve);
+    actions.appendChild(reject);
+    card.appendChild(actions);
+
+    if (state.rejectOpen[draft.draftId]) {
+      card.appendChild(rejectBox(draft, card, approve, reject));
+    }
+    return card;
+  }
+
+  function rejectBox(draft, card, approve, reject) {
+    var box = el('div', 'reject-box');
+    var reason = el('input');
+    reason.type = 'text';
+    reason.placeholder = 'Reason (optional, recorded in the sheet)';
+    reason.value = state.rejectOpen[draft.draftId] === true ? '' : state.rejectOpen[draft.draftId];
+    reason.addEventListener('input', function () {
+      state.rejectOpen[draft.draftId] = reason.value;
+    });
+
+    var buttons = el('div', 'actions');
+    var confirm = el('button', 'danger', 'Confirm reject');
+    confirm.type = 'button';
+    confirm.addEventListener('click', function () {
+      rejectDraft(draft, reason.value, confirm);
+    });
+    var cancel = el('button', 'ghost', 'Cancel');
+    cancel.type = 'button';
+    cancel.addEventListener('click', function () {
+      delete state.rejectOpen[draft.draftId];
+      renderDrafts();
+    });
+    buttons.appendChild(confirm);
+    buttons.appendChild(cancel);
+
+    box.appendChild(reason);
+    box.appendChild(buttons);
+    window.setTimeout(function () {
+      reason.focus();
+    }, 20);
+    return box;
+  }
+
+  function toggleReject(draft, card, button) {
+    if (state.rejectOpen[draft.draftId]) {
+      delete state.rejectOpen[draft.draftId];
+    } else {
+      state.rejectOpen[draft.draftId] = true;
+    }
+    renderDrafts();
+  }
+
+  function setBusy(card, busy) {
+    if (!card) {
+      return;
+    }
+    Array.prototype.forEach.call(card.querySelectorAll('button'), function (button) {
+      button.disabled = busy;
+    });
+  }
+
+  function approveDraft(draft, button) {
+    var card = button.closest('.card');
+    var label = 'Approve the ' + (draft.channel || 'outreach') + ' draft for ' + (draft.company || draft.leadId) + '?';
+    if (!window.confirm(label + '\n\nThis records your approval in the sheet. It does not send anything.')) {
+      return;
+    }
+    setBusy(card, true);
+    button.textContent = 'Approving…';
+    google.script.run
+      .withSuccessHandler(function (result) {
+        handleResult(result, 'Approved. Nothing was sent.');
+      })
+      .withFailureHandler(function (error) {
+        toast('Approval failed: ' + failureText(error), 'bad');
+        refresh();
+      })
+      .approveDraft(draft.draftId);
+  }
+
+  function rejectDraft(draft, reason, button) {
+    var card = button.closest('.card');
+    setBusy(card, true);
+    button.textContent = 'Rejecting…';
+    google.script.run
+      .withSuccessHandler(function (result) {
+        delete state.rejectOpen[draft.draftId];
+        handleResult(result, 'Rejected.');
+      })
+      .withFailureHandler(function (error) {
+        toast('Rejection failed: ' + failureText(error), 'bad');
+        refresh();
+      })
+      .rejectDraft(draft.draftId, reason || '');
+  }
+
+  function failureText(error) {
+    if (!error) {
+      return 'unknown error';
+    }
+    return error.message ? error.message : String(error);
+  }
+
+  function handleResult(result, fallbackMessage) {
+    if (!result || !result.ok) {
+      toast((result && result.error) || 'The decision was not saved.', 'bad');
+      refresh();
+      return;
+    }
+    toast(result.message || fallbackMessage, 'good');
+    refresh();
+  }
+
+  function renderFacts(info) {
+    var facts = document.getElementById('setup-facts');
+    facts.textContent = '';
+    if (!info) {
+      return;
+    }
+    var rows = [
+      ['Owner email', info.ownerEmail || 'not set'],
+      ['Signed in as', info.activeUserEmail || 'unknown'],
+      ['Spreadsheet', info.spreadsheetName || ''],
+      ['Outreach tab', info.outreachSheetName || 'not found'],
+      ['Leads tab', info.leadsSheetName || 'not found'],
+      ['Activity tab', info.activitySheetName || 'not found'],
+      ['Missing columns', info.missingColumns && info.missingColumns.length ? info.missingColumns.join(', ') : 'none']
+    ];
+    rows.forEach(function (pair) {
+      var line = el('div');
+      line.appendChild(el('dt', null, pair[0]));
+      line.appendChild(el('dd', null, pair[1]));
+      facts.appendChild(line);
+    });
+  }
+
+  function render(response) {
+    if (!response || !response.ok) {
+      banner((response && response.error) || 'Could not read the spreadsheet.', false);
+      state.info = response ? response.state : null;
+      state.drafts = [];
+    } else {
+      banner('', true);
+      state.info = response.state;
+      state.drafts = response.drafts || [];
+    }
+    state.loaded = true;
+
+    if (state.info) {
+      document.getElementById('sheet-name').textContent =
+        (state.info.spreadsheetName || 'Spreadsheet') + (state.info.ownerEmail ? '' : ' · owner email not set');
+      document.getElementById('owner-email').value = state.info.ownerEmail || '';
+      if (!state.info.ownerEmail) {
+        banner('Set your owner email in Settings before approving. Approvals cannot be recorded without it.', false);
+      }
+      document.getElementById('pending-count').textContent = String(state.info.pendingVisible || 0);
+    }
+    renderFacts(state.info);
+    renderDrafts();
+    if (state.drafts.length && state.info) {
+      document.getElementById('pending-count').textContent = String(state.drafts.length);
+    }
+  }
+
+  function refresh() {
+    var button = document.getElementById('refresh');
+    button.disabled = true;
+    button.textContent = 'Refreshing…';
+    google.script.run
+      .withSuccessHandler(function (response) {
+        render(response);
+      })
+      .withFailureHandler(function (error) {
+        banner('Could not load drafts: ' + failureText(error), false);
+      })
+      .loadApprovalState();
+    window.setTimeout(function () {
+      button.disabled = false;
+      button.textContent = 'Refresh';
+    }, 600);
+  }
+
+  function saveOwnerEmail() {
+    var input = document.getElementById('owner-email');
+    var button = document.getElementById('save-owner');
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    google.script.run
+      .withSuccessHandler(function (result) {
+        button.disabled = false;
+        button.textContent = 'Save owner email';
+        if (!result || !result.ok) {
+          toast((result && result.error) || 'Could not save the owner email.', 'bad');
+          return;
+        }
+        toast(result.message, 'good');
+        render({ ok: true, state: result.state, drafts: state.drafts });
+        refresh();
+      })
+      .withFailureHandler(function (error) {
+        button.disabled = false;
+        button.textContent = 'Save owner email';
+        toast('Could not save: ' + failureText(error), 'bad');
+      })
+      .saveOwnerEmail(input.value);
+  }
+
+  function showTab(name) {
+    var review = name === 'review';
+    document.getElementById('view-review').classList.toggle('hidden', !review);
+    document.getElementById('view-settings').classList.toggle('hidden', review);
+    document.getElementById('tab-review').classList.toggle('active', review);
+    document.getElementById('tab-settings').classList.toggle('active', !review);
+    document.getElementById('tab-review').setAttribute('aria-selected', review ? 'true' : 'false');
+    document.getElementById('tab-settings').setAttribute('aria-selected', review ? 'false' : 'true');
+  }
+
+  document.getElementById('tab-review').addEventListener('click', function () {
+    showTab('review');
+  });
+  document.getElementById('tab-settings').addEventListener('click', function () {
+    showTab('settings');
+  });
+  document.getElementById('refresh').addEventListener('click', refresh);
+  document.getElementById('save-owner').addEventListener('click', saveOwnerEmail);
+  document.getElementById('owner-email').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') {
+      saveOwnerEmail();
+    }
+  });
+
+  refresh();
+</script>
