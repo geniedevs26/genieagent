@@ -63,3 +63,17 @@ begin
   end if;
 end $$;
 reset role;
+
+-- Trigger-only SECURITY DEFINER function must not be callable via exposed API roles.
+do $$
+begin
+  if has_function_privilege('anon','public.block_suppressed_outreach()','EXECUTE') then
+    raise exception 'anon must not execute the suppression trigger function';
+  end if;
+  if has_function_privilege('authenticated','public.block_suppressed_outreach()','EXECUTE') then
+    raise exception 'authenticated must not execute the suppression trigger function';
+  end if;
+  if not has_function_privilege('service_role','public.block_suppressed_outreach()','EXECUTE') then
+    raise exception 'service_role trigger-function permission was not preserved';
+  end if;
+end $$;
