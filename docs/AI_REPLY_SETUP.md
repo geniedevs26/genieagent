@@ -1,6 +1,6 @@
 # AI email reply setup
 
-GenieAgent can answer a narrow set of simple client questions by email. It uses Cloudflare Workers AI with the currently documented free allocation, and is limited to three AI reply attempts per UTC day.
+GenieAgent can answer a narrow set of simple client questions by email. It uses Cloudflare Workers AI only when the global automation state and the AI-reply channel are explicitly enabled by the owner. The application does not impose an arbitrary daily reply count; Cloudflare account quotas, rate limits and plan terms still apply.
 
 ## One-time setup
 
