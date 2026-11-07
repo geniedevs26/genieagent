@@ -254,8 +254,8 @@ for item in [
     if item not in controls:
         fail(f"missing central automation safety control: {item}")
 for source, required in [
-    (outreach, "assert_outbound_enabled(key, owner_id, channel)"),
-    (inbox, 'assert_outbound_enabled(key, owner_id, "ai_reply")'),
+    (outreach, "assert_outbound_enabled(key, owner_id, channel, recipient=email)"),
+    (inbox, 'assert_outbound_enabled(key, owner_id, "ai_reply", recipient=recipient)'),
     (executor, 'assert_outbound_enabled(key, owner_id, "client_stage_email", recipient=(lead.get("contact_email") or "").strip())'),
 ]:
     if required not in source:
