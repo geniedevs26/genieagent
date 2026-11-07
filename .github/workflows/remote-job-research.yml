@@ -2,6 +2,7 @@ name: Remote job discovery
 
 on:
   push:
+    branches: [main]
     paths:
       - 'scripts/remote_job_research.py'
       - '.github/workflows/remote-job-research.yml'
