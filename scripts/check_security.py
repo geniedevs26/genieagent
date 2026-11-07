@@ -245,7 +245,7 @@ if 'NON_BUYER_PUBLISHERS = {"hubspot.com"}' not in outreach:
 
 for item in [
     "class OutboundBlocked(RuntimeError):",
-    "def assert_outbound_enabled(key, owner_id, channel):",
+    "def assert_outbound_enabled(key, owner_id, channel, recipient=None):",
     '"state": "eq.running"',
     '"enabled": "eq.true"',
     "fail-closed",
