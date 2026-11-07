@@ -78,6 +78,20 @@ def create_stage_request(key, owner_id, order, stage, title, subject, body):
     }],"return=representation") or []
     return rows[0]["id"] if rows else None
 
+def suppress_contact(key, owner_id, lead_id, contact, reason, source):
+    normalized=re.sub(r"[^a-z0-9@+.]", "", (contact or "").strip().lower())
+    if not normalized: return
+    query=urllib.parse.urlencode({
+        "owner_id":"eq."+owner_id,"contact_normalized":"eq."+normalized,
+        "channel":"in.(email,all)","select":"id","limit":"1"
+    })
+    existing=api("/rest/v1/contact_suppressions?"+query,key) or []
+    if existing: return
+    api("/rest/v1/contact_suppressions",key,"POST",[{
+        "owner_id":owner_id,"lead_id":lead_id,"contact_value":contact,
+        "channel":"email","reason":reason,"source":source
+    }],"return=minimal")
+
 def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, now):
     combined=subject+"\n"+reply_body
     if OPTOUT_RE.search(combined):
@@ -91,6 +105,7 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
         api("/rest/v1/leads?id=eq."+lead["id"],key,"PATCH",{
             "payload":payload,"lead_status":"do_not_contact","updated_at":now
         },"return=minimal")
+        suppress_contact(key,owner_id,lead["id"],sender,"opt_out","inbound_email")
         event(key,owner_id,"client_opt_out","blocked","Client opt-out recorded; all future outreach suppressed.",{"lead_id":lead["id"],"sender":sender})
         return "opt_out"
 
@@ -317,7 +332,7 @@ def ai_reply_text(account_id, token, subject, body, lead):
 def send_ai_reply(key, owner_id, lead, recipient, subject, answer, message_id, host, port, username, password, sender):
     import uuid
     try:
-        assert_outbound_enabled(key, owner_id, "ai_reply")
+        assert_outbound_enabled(key, owner_id, "ai_reply", recipient=recipient)
     except OutboundBlocked as exc:
         print("Automatic buyer reply held: " + str(exc))
         return False
@@ -446,6 +461,7 @@ def main():
                 },"return=minimal")
                 lead=leads_by_id.get(original.get("lead_id"))
                 if lead:
+                    suppress_contact(key,owner_id,lead["id"],recipient,"bounce","inbound_bounce")
                     payload=lead.get("payload") if isinstance(lead.get("payload"),dict) else {}
                     payload["emailDeliveryStatus"]="bounced"
                     payload["contactVerified"]="No"
