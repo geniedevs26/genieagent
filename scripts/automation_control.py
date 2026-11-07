@@ -1,6 +1,7 @@
 """Fail-closed, database-backed outbound controls shared by GenieAgent workers."""
 import json
 import os
+import re
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -33,7 +34,7 @@ def read_rows(table, key, query):
         raise OutboundBlocked("Outbound blocked: central controls are unavailable; fail-closed.") from exc
 
 
-def assert_outbound_enabled(key, owner_id, channel):
+def assert_outbound_enabled(key, owner_id, channel, recipient=None):
     if not key or not owner_id or channel not in CHANNELS:
         raise OutboundBlocked("Outbound blocked: missing identity or unknown channel.")
     controls = read_rows("automation_controls", key, {
@@ -47,4 +48,17 @@ def assert_outbound_enabled(key, owner_id, channel):
     })
     if len(switches) != 1 or switches[0].get("enabled") is not True:
         raise OutboundBlocked("Outbound blocked: channel is not explicitly enabled.")
+    if recipient:
+        normalized = re.sub(r"[^a-z0-9@+.]", "", str(recipient).strip().lower())
+        if not normalized:
+            raise OutboundBlocked("Outbound blocked: recipient cannot be normalized.")
+        suppressions = read_rows("contact_suppressions", key, {
+            "owner_id": "eq." + owner_id,
+            "contact_normalized": "eq." + normalized,
+            "channel": "in.(email,all)",
+            "select": "id",
+            "limit": "1",
+        })
+        if suppressions:
+            raise OutboundBlocked("Outbound blocked: recipient is in the contact suppression list.")
     return True
