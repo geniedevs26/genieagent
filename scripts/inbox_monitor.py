@@ -18,6 +18,7 @@ from datetime import datetime, timezone, timedelta
 from email.header import decode_header
 from email.utils import parseaddr
 from email.message import EmailMessage
+from automation_control import assert_outbound_enabled, OutboundBlocked
 
 SUPABASE_URL = "https://irpqaoooosrjhviwdddo.supabase.co"
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
@@ -315,6 +316,7 @@ def ai_reply_text(account_id, token, subject, body, lead):
 
 def send_ai_reply(key, owner_id, lead, recipient, subject, answer, message_id, host, port, username, password, sender):
     import uuid
+    assert_outbound_enabled(key, owner_id, "ai_reply")
     action_id=str(uuid.uuid4())
     msg=EmailMessage()
     msg["From"]=sender
@@ -386,9 +388,6 @@ def main():
     mail=imaplib.IMAP4_SSL(host,port,timeout=20)
     processed=replies=bounces=ignored=orders_created=approvals_created=optouts=ai_replies=ai_held=intake_replies=0
     today=datetime.now(timezone.utc).date().isoformat()
-    ai_replies_today=sum(1 for a in actions if a.get("action_type")=="ai_reply"
-                         and (a.get("created_at") or "").startswith(today))
-    ai_reply_limit=max(0,3-ai_replies_today)
     try:
         mail.login(username,password)
         status,_=mail.select(folder)
@@ -500,7 +499,7 @@ def main():
                         except ValueError: smtp_port=587
                         # Scope/budget intake is deterministic and does not consume the AI quota.
                         answer=(scope_intake_reply_text(lead,subject,text) if result=="scope_intake_reply"
-                                else ai_reply_text(account_id,token,subject,text,lead) if ai_replies<ai_reply_limit else "")
+                                else ai_reply_text(account_id,token,subject,text,lead))
                         if answer and all([smtp_host,smtp_user,smtp_pass,sender_email]):
                             if send_ai_reply(key,owner_id,lead,sender,subject,answer,message_id,
                                              smtp_host,smtp_port,smtp_user,smtp_pass,sender_email):
