@@ -540,7 +540,9 @@ def main():
     page_offset=datetime.now(timezone.utc).hour % 10
     stats={"search_page_offset":page_offset,"queries":0,"search_results":0,"empty_searches":0,"pages_checked":0,"pages_skipped_seen":0,"page_failures":0,"qualified_pages":0,"potential_pages":0,"new_candidates":0}
     discovered=[]
-    # Discovery uses structured public APIs; unstable search-engine HTML scraping is not scheduled.
+    # Use both structured social APIs and the multi-engine public web search.
+    # The search() helper was previously defined but never called from main(),
+    # which meant hundreds of search results were never discovered or inspected.
     social_results,api_metrics=discover_social_requests()
     stats.update(api_metrics)
     stats["queries"]=api_metrics["bluesky_requests"]
@@ -548,6 +550,19 @@ def main():
     stats["reddit_buyer_posts_found"]=0
     stats["social_buyer_posts_found"]=len(social_results)
     discovered.extend(social_results)
+    web_query_count=16
+    query_start=(page_offset*web_query_count) % len(QUERIES)
+    query_batch=[QUERIES[(query_start+i) % len(QUERIES)] for i in range(web_query_count)]
+    web_results=[]
+    for query in query_batch:
+        try:
+            web_results.extend(search(query,page_offset))
+        except Exception as exc:
+            print(f"Public web search failed for one query: {type(exc).__name__}")
+    discovered.extend(web_results)
+    stats["web_queries"]=len(query_batch)
+    stats["web_search_results"]=len(web_results)
+    stats["search_results"]+=len(web_results)
     def region_rank(item):
         d=host(item[1])
         context=(item[0]+" "+item[2]).lower()
