@@ -316,7 +316,11 @@ def ai_reply_text(account_id, token, subject, body, lead):
 
 def send_ai_reply(key, owner_id, lead, recipient, subject, answer, message_id, host, port, username, password, sender):
     import uuid
-    assert_outbound_enabled(key, owner_id, "ai_reply")
+    try:
+        assert_outbound_enabled(key, owner_id, "ai_reply")
+    except OutboundBlocked as exc:
+        print("Automatic buyer reply held: " + str(exc))
+        return False
     action_id=str(uuid.uuid4())
     msg=EmailMessage()
     msg["From"]=sender
