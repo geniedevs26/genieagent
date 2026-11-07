@@ -136,7 +136,7 @@ for item in [
 for item in [
     "FOLLOWUP_DAYS = (5, 12, 21)",
     "MAX_FOLLOWUPS = len(FOLLOWUP_DAYS)",
-    "assert_outbound_enabled(key, owner_id, channel)",
+    "assert_outbound_enabled(key, owner_id, channel, recipient=email)",
     "PORTFOLIO_URL = \"https://sivaprasad-portfolio.pages.dev/\"",
     "def service_profile(lead, payload):",
     "def requirement_reference(evidence):",
