@@ -5,6 +5,7 @@ This worker never creates or approves an action. It executes only approval_reque
 whose status is already 'approved'. Ambiguous sends are not retried automatically.
 """
 import json, os, smtplib, sys, uuid, urllib.parse, urllib.request, urllib.error
+from automation_control import assert_outbound_enabled
 from datetime import datetime, timezone
 from email.message import EmailMessage
 
@@ -57,6 +58,7 @@ def finance_ready(finance,lead):
     return True,""
 
 def send_stage_email(key,owner_id,request,order,lead,smtp):
+    assert_outbound_enabled(key, owner_id, "client_stage_email")
     host,port,user,password,sender=smtp
     recipient=(lead.get("contact_email") or "").strip()
     if not recipient: raise RuntimeError("Verified client email is missing.")
