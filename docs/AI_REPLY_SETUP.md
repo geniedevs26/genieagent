@@ -22,7 +22,7 @@ The responder holds pricing, quotes, estimates, budget, payment, contract, terms
 
 ## Zero-cost guardrails
 
-Cloudflare documents a 10,000 Neurons/day free allocation on the Workers Free plan. GenieAgent applies a stricter cap of three AI reply attempts per UTC day. Keep the Cloudflare account on the Free Workers plan; do not upgrade or add prepaid credits. If the free allocation is unavailable or exhausted, AI reply generation fails closed and the client message remains recorded for review.
+The application does not impose an arbitrary daily AI-reply cap. Check Cloudflare's current account quota, rate limits and plan terms before enabling the channel. Do not upgrade or add prepaid credits. Provider errors, rate limits or exhausted allocation must fail closed; the client message remains recorded for review.
 
 Official documentation:
 - https://developers.cloudflare.com/workers-ai/platform/pricing/
