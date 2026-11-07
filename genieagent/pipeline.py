@@ -27,6 +27,9 @@ from .models import (
     OUTREACH_REPLIED,
     OUTREACH_SENT,
     ORDER_STATUSES,
+    VERIFICATION_PENDING,
+    VERIFICATION_REJECTED,
+    VERIFICATION_VERIFIED,
 )
 from .normalize import normalize_company, normalize_domain, normalize_email
 from .outreach.brevo import delivery_status_from_events, fetch_email_events, smtp_from_config
@@ -52,6 +55,12 @@ from .qualify import (
 from .storage.csv_store import activity_table, leads_table, outreach_table
 from .sync import sync_all
 from .util import mask_email, mask_phone, now_iso, read_csv, stable_id, write_json
+from .verification import (
+    apply_verification,
+    assess_lead,
+    verification_gate,
+    verification_summary,
+)
 
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
 LONG_DIGITS_RE = re.compile(r"(?<![\w.])(\+?\d[\d\s().-]{6,}\d)(?![\w.])")
@@ -387,6 +396,99 @@ def stage_enrich(
     return summary
 
 
+# -------------------------------------------------------------------- verify
+
+
+def stage_verify(
+    config: Config,
+    limit: Optional[int] = None,
+    transport: Optional[Transport] = None,
+) -> Dict[str, Any]:
+    """Apply strict authenticity verification to recorded leads.
+
+    Deterministic and offline: each decision is derived from stored evidence, and
+    anything missing holds the lead instead of promoting it. Queued drafts for a
+    lead that stops being verified are suppressed, never sent.
+    """
+    table = _leads(config)
+    leads = table.load()
+    if not leads:
+        return _skipped(config, "verify", "No leads to verify yet.")
+    drafts_table = _drafts(config)
+    drafts = drafts_table.load()
+    cap = max(1, int(limit or 500))
+    assessed = 0
+    transitions = 0
+    suppressed = 0
+    for lead in leads[:cap]:
+        before_status = str(lead.get("verification_status") or "")
+        assessment = assess_lead(lead, config)
+        apply_verification(lead, assessment)
+        assessed += 1
+        after_status = str(lead.get("verification_status") or "")
+        if after_status != before_status:
+            transitions += 1
+            if transitions <= 25:
+                log(
+                    config,
+                    "verification_changed",
+                    after_status,
+                    f"Verification set to {after_status}",
+                    {"previous": before_status or "unassessed", "reason": str(assessment.get("reason") or "")[:300]},
+                    str(lead.get("lead_id") or ""),
+                )
+        # Suppression applies on every run, not only when the status changes: an
+        # operator could otherwise approve a draft for a lead that was already
+        # rejected before this stage ran.
+        if after_status == VERIFICATION_VERIFIED:
+            continue
+        for draft in drafts:
+            if str(draft.get("lead_id") or "") != str(lead.get("lead_id") or ""):
+                continue
+            if str(draft.get("approval_status") or "") not in {APPROVAL_PENDING, APPROVAL_APPROVED}:
+                continue
+            draft["approval_status"] = APPROVAL_SUPPRESSED
+            draft["failure_reason"] = ("Verification: " + str(assessment.get("reason") or ""))[:500]
+            draft["updated_at"] = now_iso()
+            suppressed += 1
+            log(
+                config,
+                "draft_suppressed",
+                "blocked",
+                "Queued draft suppressed because the lead is no longer verified",
+                {"draft_id": draft.get("draft_id"), "verification_status": after_status},
+                str(lead.get("lead_id") or ""),
+            )
+    table.upsert(leads[:cap])
+    if suppressed:
+        drafts_table.upsert(drafts)
+    if config.sheets_ready:
+        from .storage.sheets import leads_sheet
+
+        try:
+            leads_sheet(config, transport=transport).upsert(leads[:cap])
+            if suppressed:
+                from .storage.sheets import outreach_sheet
+
+                outreach_sheet(config, transport=transport).upsert(drafts)
+        except Exception as exc:  # pragma: no cover - network dependent
+            log(config, "sheets_push_failed", "failed", "Verification push failed", str(exc)[:300])
+    counts = verification_summary(leads[:cap], config)
+    summary = {
+        "stage": "verify",
+        "status": "ok",
+        "checked": assessed,
+        "verified": counts["verified_genuine"],
+        "pending": counts["pending_verification"],
+        "rejected": counts["rejected_fraud"],
+        "status_changes": transitions,
+        "drafts_suppressed": suppressed,
+        "message": "Only verified_genuine leads can be qualified, drafted or sent.",
+    }
+    log(config, "verify_completed", "ok", f"Verification checked {assessed} lead(s)", {k: v for k, v in summary.items() if k != "message"})
+    return summary
+
+
 # ------------------------------------------------------------------- qualify
 
 
@@ -409,8 +511,16 @@ def stage_qualify(
         and str(row.get("do_not_contact") or "").lower() != "true"
     ]
     updated: List[Dict[str, Any]] = []
-    qualified = rejected = blocked = failures = 0
+    qualified = rejected = blocked = blocked_unverified = failures = 0
     for row in eligible[: _limit(config, limit)]:
+        verification_reason = verification_gate(row, config)
+        if verification_reason:
+            row["qualification_status"] = LEAD_STATUS_NEEDS_REVIEW
+            row["qualification_reason"] = "Verification: " + verification_reason
+            row["updated_at"] = now_iso()
+            updated.append(row)
+            blocked_unverified += 1
+            continue
         reason = qualification_gate(row)
         if reason:
             row["qualification_status"] = LEAD_STATUS_NEEDS_REVIEW
@@ -451,6 +561,7 @@ def stage_qualify(
         "evaluated": len(updated),
         "qualified": qualified,
         "rejected": rejected,
+        "blocked_unverified": blocked_unverified,
         "blocked_without_evidence": blocked,
         "failures": failures,
     }
@@ -807,7 +918,12 @@ def build_dashboard(config: Config) -> Dict[str, Any]:
     def count(field: str, value: str) -> int:
         return sum(1 for row in leads if str(row.get(field) or "") == value)
 
-    verified = sum(1 for row in leads if email_is_contactable(row))
+    # Only contacts on verified-genuine leads count as verified business emails.
+    verified = sum(
+        1
+        for row in leads
+        if email_is_contactable(row) and str(row.get("verification_status") or "") == VERIFICATION_VERIFIED
+    )
     pending = sum(1 for row in drafts if str(row.get("approval_status")) == APPROVAL_PENDING)
     approved = sum(1 for row in drafts if str(row.get("approval_status")) == APPROVAL_APPROVED)
     sent = sum(1 for row in drafts if str(row.get("approval_status")) == "sent")
@@ -816,6 +932,11 @@ def build_dashboard(config: Config) -> Dict[str, Any]:
     bounced = count("outreach_status", OUTREACH_BOUNCED)
     replied = count("outreach_status", OUTREACH_REPLIED)
     qualified = count("qualification_status", LEAD_STATUS_QUALIFIED)
+    interested = count("order_status", "interested")
+    sent_drafts = [draft for draft in drafts if str(draft.get("approval_status")) == "sent"]
+    emails_sent = sum(1 for draft in sent_drafts if str(draft.get("channel")) == "email")
+    whatsapp_sent = sum(1 for draft in sent_drafts if str(draft.get("channel")) == "whatsapp")
+    verification = verification_summary(leads, config)
 
     countries: Dict[str, int] = {}
     services: Dict[str, int] = {}
@@ -839,6 +960,13 @@ def build_dashboard(config: Config) -> Dict[str, Any]:
                 "email_status": row.get("email_status", ""),
                 "score": row.get("qualification_score", ""),
                 "qualification_status": row.get("qualification_status", ""),
+                "verification_status": row.get("verification_status", ""),
+                "verification_reason": redact_pii(row.get("verification_reason"))[:300],
+                "identity_status": row.get("identity_status", ""),
+                "verification_sources": redact_pii(row.get("verification_sources"))[:240],
+                "fraud_indicators": redact_pii(row.get("fraud_indicators"))[:240],
+                "verification_checked_at": row.get("verification_checked_at", ""),
+                "verified_at": row.get("verified_at", ""),
                 "service_fit": row.get("service_fit", ""),
                 "priority": row.get("priority", ""),
                 "outreach_status": row.get("outreach_status", ""),
@@ -882,13 +1010,65 @@ def build_dashboard(config: Config) -> Dict[str, Any]:
             }
         )
 
+    recent_rejections = [
+        {
+            "company": redact_pii(row.get("company_name"))[:160],
+            "reason": redact_pii(row.get("verification_reason"))[:260],
+            "checked_at": row.get("verification_checked_at", ""),
+            "sources": redact_pii(row.get("verification_sources"))[:200],
+        }
+        for row in leads
+        if str(row.get("verification_status") or "") == VERIFICATION_REJECTED
+    ][:10]
+    recent_holds = [
+        {
+            "company": redact_pii(row.get("company_name"))[:160],
+            "reason": redact_pii(row.get("verification_reason"))[:260],
+            "checked_at": row.get("verification_checked_at", ""),
+        }
+        for row in leads
+        if str(row.get("verification_status") or "") == VERIFICATION_PENDING
+    ][:10]
+    failures = [event for event in activity if str(event.get("status") or "") == "failed"][:5]
+
     return {
         "generated_at": now_iso(),
         "safety": {
             **config.safety_summary(),
             "whatsapp": provider_status(config) if config.whatsapp_provider != "none" else {"provider": "none", "configured": False},
-            "banner": "Automatic outreach is disabled. Every message requires owner approval; only verified contacts are eligible.",
+            "banner": (
+                "Automatic outreach is disabled. Only leads verified as genuine may be qualified, "
+                "drafted or sent, and every message still requires per-message owner approval."
+            ),
         },
+        "settings": {
+            "outreach_send_enabled": config.outreach_send_enabled,
+            "whatsapp_send_enabled": config.whatsapp_send_enabled,
+            "auto_outreach_enabled": config.auto_outreach_enabled,
+            "owner_approval_required": True,
+            "outreach_daily_limit": config.outreach_daily_limit,
+            "outreach_min_score": config.outreach_min_score,
+            "follow_up_days": list(config.outreach_followup_days),
+            "verification_max_age_days": config.verification_max_age_days,
+            "legal_basis": config.outreach_legal_basis,
+            "suppressed_recipients": len(config.suppressed_emails),
+        },
+        "automation": {
+            "last_event_at": activity[0].get("timestamp", "") if activity else "",
+            "last_event_summary": redact_pii(activity[0].get("summary"))[:240] if activity else "",
+            "recent_failures": [
+                {
+                    "timestamp": event.get("timestamp", ""),
+                    "summary": redact_pii(event.get("summary"))[:220],
+                }
+                for event in failures
+            ],
+            "pending_drafts": pending,
+            "approved_waiting": approved,
+            "schedule": "GitHub Actions every 6 hours; manual or Termux scheduler otherwise",
+            "sending_requires": "OUTREACH_SEND_ENABLED=true and a recorded owner approval per draft",
+        },
+        "verification": {**verification, "recent_rejections": recent_rejections, "recent_holds": recent_holds},
         "totals": {
             "leads": len(leads),
             "verified_emails": verified,
@@ -896,13 +1076,20 @@ def build_dashboard(config: Config) -> Dict[str, Any]:
             "drafts_pending_approval": pending,
             "drafts_approved": approved,
             "messages_sent": sent,
+            "emails_sent": emails_sent,
+            "whatsapp_sent": whatsapp_sent,
             "send_failures": failed,
             "replies": replied,
+            "interested": interested,
             "bounces": bounced,
             "opt_outs": opted_out,
             "orders": sum(1 for row in leads if str(row.get("order_status") or "none") not in ("", "none")),
             "rejected": count("qualification_status", "rejected"),
             "needs_review": count("qualification_status", LEAD_STATUS_NEEDS_REVIEW),
+            "verified_genuine": verification["verified_genuine"],
+            "verification_pending": verification["pending_verification"],
+            "rejected_fraud": verification["rejected_fraud"],
+            "verification_recheck_due": verification["recheck_due"],
         },
         "orders": {status: count("order_status", status) for status in ORDER_STATUSES},
         "by_country": dict(sorted(countries.items(), key=lambda item: item[1], reverse=True)[:12]),
@@ -936,6 +1123,7 @@ STAGES: Dict[str, Callable[..., Dict[str, Any]]] = {
     "import": stage_import_candidates,
     "discover": stage_discover,
     "enrich": stage_enrich,
+    "verify": stage_verify,
     "qualify": stage_qualify,
     "draft": stage_draft,
     "followups": stage_draft,
@@ -950,6 +1138,7 @@ STAGE_PARAMS: Dict[str, set] = {
     "import": {"limit", "source"},
     "discover": {"limit", "apollo", "transport"},
     "enrich": {"limit", "hunter", "transport", "verify_only"},
+    "verify": {"limit", "transport"},
     "qualify": {"limit", "gemini", "transport"},
     "draft": {"limit", "gemini", "include_whatsapp", "transport"},
     "followups": {"limit", "gemini", "include_whatsapp", "transport"},

@@ -2,7 +2,7 @@
 """Run several pipeline stages in order (single Termux/n8n command).
 
 Example:
-    python scripts/run_pipeline.py --stages import,discover,enrich,qualify,draft,sync,report
+    python scripts/run_pipeline.py --stages import,discover,enrich,verify,qualify,draft,sync,report
 
 ``send`` is never included unless explicitly requested. Scheduled runs must use
 ``--stages ... --no-send`` (the default) so nothing leaves the machine
@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from genieagent.cli import config_from, emit, main_guard, parser_for  # noqa: E402
 from genieagent.pipeline import run_stages  # noqa: E402
 
-DEFAULT_STAGES = "import,discover,enrich,qualify,draft,followups,sync,report"
+DEFAULT_STAGES = "import,discover,enrich,verify,qualify,draft,followups,sync,report"
 
 
 def run() -> int:

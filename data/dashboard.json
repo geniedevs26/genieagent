@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-06T11:54:12Z",
+  "generated_at": "2026-11-07T03:52:44Z",
   "safety": {
     "apollo_configured": false,
     "hunter_configured": false,
@@ -15,11 +15,48 @@
     "auto_outreach_enabled": false,
     "automatic_outreach": false,
     "owner_email_configured": false,
+    "verification_max_age_days": 30,
+    "outreach_legal_basis": "legitimate_interest_b2b",
     "whatsapp": {
       "provider": "none",
       "configured": false
     },
-    "banner": "Automatic outreach is disabled. Every message requires owner approval; only verified contacts are eligible."
+    "banner": "Automatic outreach is disabled. Only leads verified as genuine may be qualified, drafted or sent, and every message still requires per-message owner approval."
+  },
+  "settings": {
+    "outreach_send_enabled": false,
+    "whatsapp_send_enabled": false,
+    "auto_outreach_enabled": false,
+    "owner_approval_required": true,
+    "outreach_daily_limit": 10,
+    "outreach_min_score": 70,
+    "follow_up_days": [
+      5,
+      12,
+      21
+    ],
+    "verification_max_age_days": 30,
+    "legal_basis": "legitimate_interest_b2b",
+    "suppressed_recipients": 0
+  },
+  "automation": {
+    "last_event_at": "2026-11-07T03:50:14Z",
+    "last_event_summary": "Dashboard data exported",
+    "recent_failures": [],
+    "pending_drafts": 0,
+    "approved_waiting": 0,
+    "schedule": "GitHub Actions every 6 hours; manual or Termux scheduler otherwise",
+    "sending_requires": "OUTREACH_SEND_ENABLED=true and a recorded owner approval per draft"
+  },
+  "verification": {
+    "total": 0,
+    "verified_genuine": 0,
+    "pending_verification": 0,
+    "rejected_fraud": 0,
+    "unassessed": 0,
+    "recheck_due": 0,
+    "recent_rejections": [],
+    "recent_holds": []
   },
   "totals": {
     "leads": 0,
@@ -28,13 +65,20 @@
     "drafts_pending_approval": 0,
     "drafts_approved": 0,
     "messages_sent": 0,
+    "emails_sent": 0,
+    "whatsapp_sent": 0,
     "send_failures": 0,
     "replies": 0,
+    "interested": 0,
     "bounces": 0,
     "opt_outs": 0,
     "orders": 0,
     "rejected": 0,
-    "needs_review": 0
+    "needs_review": 0,
+    "verified_genuine": 0,
+    "verification_pending": 0,
+    "rejected_fraud": 0,
+    "verification_recheck_due": 0
   },
   "orders": {
     "none": 0,
@@ -51,6 +95,24 @@
   "leads": [],
   "drafts": [],
   "activity": [
+    {
+      "timestamp": "2026-11-07T03:50:14Z",
+      "event_type": "report_completed",
+      "status": "ok",
+      "summary": "Dashboard data exported"
+    },
+    {
+      "timestamp": "2026-11-07T03:38:41Z",
+      "event_type": "report_completed",
+      "status": "ok",
+      "summary": "Dashboard data exported"
+    },
+    {
+      "timestamp": "2026-11-06T11:54:12Z",
+      "event_type": "report_completed",
+      "status": "ok",
+      "summary": "Dashboard data exported"
+    },
     {
       "timestamp": "2026-11-06T11:53:14Z",
       "event_type": "import_skipped",

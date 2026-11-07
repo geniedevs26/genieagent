@@ -79,6 +79,17 @@ var LEAD_HEADERS = [
   'do_not_contact',
   'consent_basis',
   'notes',
+  'verification_status',
+  'verification_reason',
+  'identity_status',
+  'verification_method',
+  'verification_sources',
+  'verification_checks',
+  'fraud_indicators',
+  'legal_basis',
+  'verification_checked_at',
+  'verified_at',
+  'verification_fingerprint',
   'created_at',
   'updated_at'
 ];

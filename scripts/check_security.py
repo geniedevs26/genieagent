@@ -393,10 +393,43 @@ if "https://www.googleapis.com/auth/spreadsheets.currentonly" not in sidebar_man
 if "https://www.googleapis.com/auth/spreadsheets" in sidebar_manifest.get("oauthScopes", []):
     fail("the sidebar must not request full spreadsheet access")
 
+# ------------------------------------- strict verification (three-level gate)
+verification_src = read("genieagent/verification.py")
+for item in (
+    "def assess_lead(",
+    "def verification_gate(",
+    "def apply_verification(",
+    "def needs_recheck(",
+    '"verified_genuine"',
+    "rejected_fraud",
+    "fraud_indicators",
+    "verification_checked_at",
+):
+    if item not in verification_src:
+        fail(f"strict verification requirement missing: {item}")
+if re.search(r"\b(urllib\.request|requests\.|urlopen|httpx)\b", verification_src):
+    fail("verification must stay offline and deterministic; no live fetching")
+if "verification_gate(lead, config)" not in drafts_src:
+    fail("draft preparation must pass the verification gate")
+if "verification_gate(lead, config)" not in drafts_src.split("def approval_gate")[-1]:
+    fail("the send approval gate must re-check strict verification")
+if "verification_gate(row, config)" not in pipeline_src:
+    fail("qualification must require a verified-genuine lead")
+if "def stage_verify(" not in pipeline_src or "\"verify\": stage_verify" not in pipeline_src:
+    fail("the pipeline must expose a verify stage")
+verification_workflow = read(".github/workflows/genieagent-verification.yml")
+for item in ("python scripts/pipeline_verify.py", 'OUTREACH_SEND_ENABLED: "false"', 'AUTO_OUTREACH_ENABLED: "false"'):
+    if item not in verification_workflow:
+        fail(f"verification workflow safety requirement missing: {item}")
+for item in ('data-panel="settings"', 'data-panel="conversations"', 'data-kpi="verified_genuine"', 'id="verificationFilter"'):
+    if item not in read("dashboard.html"):
+        fail(f"dashboard must surface verification and the required sections: {item}")
+
 print(
     "PASS: authenticated CRM, buyer research, Apollo/Hunter/Gemini pipeline, "
-    "Google Sheets sync, owner-approved outreach (CLI and Apps Script sidebar), "
-    "disabled-by-default automation, privacy-safe dashboard and static security checks."
+    "strict three-level lead verification with fraud screening, Google Sheets sync, "
+    "owner-approved outreach (CLI and Apps Script sidebar), disabled-by-default "
+    "automation, privacy-safe dashboard and static security checks."
 )
 
 # Regression policy is maintained alongside the research-first qualification workflow.

@@ -10,6 +10,11 @@ outreach — built to run on Android/Termux, GitHub Actions and n8n.
 
 ## Safety first
 
+* **Authenticity is verified before anything else.** Every lead is reviewed as
+  `verified_genuine`, `pending_verification` or `rejected_fraud` from recorded
+  evidence; only the first can be qualified, drafted or sent, and queued drafts
+  are suppressed when a verification is revoked (see
+  [docs/VERIFICATION.md](docs/VERIFICATION.md)).
 * **Automatic outreach is disabled by default.** `OUTREACH_SEND_ENABLED=false`,
   `AUTO_OUTREACH_ENABLED=false`, `WHATSAPP_SEND_ENABLED=false`.
 * **Every message needs a per-message owner approval** recorded in the private
@@ -26,7 +31,9 @@ outreach — built to run on Android/Termux, GitHub Actions and n8n.
 ## Architecture
 
 ```
-Apollo ──► normalise/dedupe ──► Hunter (find + verify) ──► Gemini (score + draft)
+Apollo ──► normalise/dedupe ──► Hunter (find + verify) ──► strict verification
+                                                              │
+                                                     Gemini (score + draft)
                                                               │
 Google Sheets (primary) ◄──────────── leads.csv / outreach.csv ◄┘
         │                              (local backup + export)
@@ -43,6 +50,7 @@ tracking (replies, bounces, opt-outs, follow-ups, orders) ──► data/dashboa
 | --- | --- |
 | Apollo lead/company discovery | `scripts/pipeline_discover.py` |
 | Hunter email discovery + verification | `scripts/pipeline_enrich.py` |
+| Strict authenticity + fraud verification | `genieagent/verification.py`, `scripts/pipeline_verify.py`, [docs/VERIFICATION.md](docs/VERIFICATION.md) |
 | Gemini analysis/qualification/personalization | current model `gemini-3.8-flash`, `scripts/pipeline_qualify.py`, `scripts/pipeline_draft.py` |
 | n8n orchestration | `n8n/*.workflow.json`, [docs/N8N_IMPORT.md](docs/N8N_IMPORT.md) |
 | Google Sheets primary database | `genieagent/storage/sheets.py`, [docs/GOOGLE_SHEETS_SETUP.md](docs/GOOGLE_SHEETS_SETUP.md) |
@@ -64,6 +72,7 @@ cp .env.example .env               # add your credentials, never commit .env
 python scripts/pipeline_import.py --limit 20
 python scripts/pipeline_discover.py --limit 10
 python scripts/pipeline_enrich.py --limit 10
+python scripts/pipeline_verify.py --limit 100
 python scripts/pipeline_qualify.py --limit 10
 python scripts/pipeline_draft.py --limit 10
 python scripts/pipeline_sync.py --direction both

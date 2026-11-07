@@ -27,6 +27,18 @@ def base_lead(**overrides):
         "consent_basis": "",
         "notes": "We need a new website for our business and have a budget.",
         "source_url": "https://acme.com/project",
+        "company_name": "Acme Inc",
+        "domain": "acme.com",
+        "website": "https://acme.com",
+        "email_source": "hunter_email_verifier",
+        "service_fit": "Website / web application development",
+        "verification_status": "verified_genuine",
+        "identity_status": "matched",
+        "verification_checked_at": now_iso(),
+        "verified_at": now_iso(),
+        "verification_fingerprint": "",
+        "fraud_indicators": "",
+        "legal_basis": "legitimate_interest_b2b",
     }
     lead.update(overrides)
     return lead
@@ -125,6 +137,19 @@ class ApprovalGateTests(unittest.TestCase):
         ok, reason = approval_gate(draft, base_lead(), self.config, [draft])
         self.assertTrue(ok, reason)
 
+    def test_blocks_lead_without_strict_verification(self):
+        draft = approved_draft()
+        for status in ("", "pending_verification", "rejected_fraud"):
+            ok, reason = approval_gate(draft, base_lead(verification_status=status), self.config, [draft])
+            self.assertFalse(ok, status)
+            self.assertIn("verified", reason.lower())
+
+    def test_blocks_stale_verification(self):
+        lead = base_lead(verification_checked_at="2020-01-01T00:00:00Z")
+        ok, reason = approval_gate(approved_draft(), lead, self.config, [])
+        self.assertFalse(ok)
+        self.assertIn("pipeline_verify", reason)
+
     def test_unattended_requires_auto_flag(self):
         ok, reason = approval_gate(approved_draft(), base_lead(), self.config, [], unattended=True)
         self.assertFalse(ok)
@@ -169,7 +194,7 @@ class PrepareDraftsTests(unittest.TestCase):
             [],
         )
         self.assertEqual(drafts, [])
-        self.assertTrue(any("not verified" in reason for reason in reasons))
+        self.assertTrue(any("verification" in reason.lower() for reason in reasons), reasons)
 
     def test_no_duplicate_pending_draft(self):
         existing = [approved_draft(approval_status=APPROVAL_PENDING)]

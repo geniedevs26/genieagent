@@ -1,0 +1,158 @@
+{
+  "name": "GenieAgent – strict lead verification recheck",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 4,
+              "triggerAtMinute": 15
+            }
+          ]
+        }
+      },
+      "id": "7d3f1a20-2222-4b02-8bbb-000000000001",
+      "name": "Daily recheck",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "Re-assesses recorded leads, revokes stale verifications and suppresses queued drafts. Offline checks only."
+    },
+    {
+      "parameters": {
+        "command": "cd \"$HOME/genieagent\" && python scripts/pipeline_verify.py --limit 500",
+        "executeOnce": true
+      },
+      "id": "7d3f1a20-2222-4b02-8bbb-000000000002",
+      "name": "Verify leads",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ],
+      "notes": "Never sends. Writes verification_status, evidence and audit checks to Google Sheets through the configured sync."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-exit-code",
+              "leftValue": "={{ $json.exitCode }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7d3f1a20-2222-4b02-8bbb-000000000003",
+      "name": "Verification failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "GenieAgent verification failed. Read the previous node output (stdout/stderr). No outreach was sent by this workflow."
+      },
+      "id": "7d3f1a20-2222-4b02-8bbb-000000000004",
+      "name": "Stop with error",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        760,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd \"$HOME/genieagent\" && python scripts/pipeline_report.py",
+        "executeOnce": true
+      },
+      "id": "7d3f1a20-2222-4b02-8bbb-000000000005",
+      "name": "Refresh redacted dashboard",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        760,
+        -120
+      ],
+      "notes": "Rebuilds data/dashboard.json so the Pages dashboard shows the current verification counts."
+    }
+  ],
+  "connections": {
+    "Daily recheck": {
+      "main": [
+        [
+          {
+            "node": "Verify leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify leads": {
+      "main": [
+        [
+          {
+            "node": "Verification failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verification failed?": {
+      "main": [
+        [
+          {
+            "node": "Refresh redacted dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop with error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": false,
+  "pinData": {},
+  "versionId": "7d3f1a20-2222-4b02-8bbb-000000000000",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

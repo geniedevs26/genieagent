@@ -279,7 +279,9 @@ test('activity ids are stable per decision yet differ between outcomes', () => {
 
 test('header constants cover every column the pipeline writes', () => {
   assert.equal(L.OUTREACH_HEADERS.length, 19);
-  assert.equal(L.LEAD_HEADERS.length, 39);
+  assert.equal(L.LEAD_HEADERS.length, 50);
+  assert.ok(L.LEAD_HEADERS.includes('verification_status'));
+  assert.ok(L.LEAD_HEADERS.includes('verification_checked_at'));
   assert.deepEqual(L.ACTIVITY_HEADERS, ['event_id', 'timestamp', 'event_type', 'status', 'lead_id', 'summary', 'details']);
   assert.ok(L.OUTREACH_HEADERS.includes('approved_by'));
   assert.ok(L.LEAD_HEADERS.includes('consent_basis'));

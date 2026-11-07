@@ -42,6 +42,18 @@ LEAD_COLUMNS: List[str] = [
     "do_not_contact",
     "consent_basis",
     "notes",
+    # Strict authenticity verification (see genieagent/verification.py)
+    "verification_status",
+    "verification_reason",
+    "identity_status",
+    "verification_method",
+    "verification_sources",
+    "verification_checks",
+    "fraud_indicators",
+    "legal_basis",
+    "verification_checked_at",
+    "verified_at",
+    "verification_fingerprint",
     "created_at",
     "updated_at",
 ]
@@ -126,6 +138,20 @@ APPROVAL_SUPPRESSED = "suppressed"
 
 SENDABLE_EMAIL_STATUSES = ("valid", "deliverable")
 
+# Three-level authenticity verification. Only VERIFIED_GENUINE may be contacted.
+VERIFICATION_VERIFIED = "verified_genuine"
+VERIFICATION_PENDING = "pending_verification"
+VERIFICATION_REJECTED = "rejected_fraud"
+VERIFICATION_LEVELS: Tuple[str, ...] = (
+    VERIFICATION_VERIFIED,
+    VERIFICATION_PENDING,
+    VERIFICATION_REJECTED,
+)
+IDENTITY_MATCHED = "matched"
+IDENTITY_UNCONFIRMED = "unconfirmed"
+IDENTITY_MISMATCH = "mismatch"
+VERIFICATION_METHOD = "recorded_evidence_review_v1"
+
 CHANNELS = ("email", "whatsapp")
 PROVIDER_EMAIL = "brevo_smtp"
 PROVIDER_META = "meta_cloud_api"
@@ -139,6 +165,8 @@ LEAD_DEFAULTS: Dict[str, str] = {
     "order_status": ORDER_NONE,
     "qualification_score": "0",
     "qualification_status": "pending",
+    "verification_status": VERIFICATION_PENDING,
+    "identity_status": IDENTITY_UNCONFIRMED,
 }
 
 OUTREACH_DEFAULTS: Dict[str, str] = {

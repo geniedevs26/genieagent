@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0b1020">
-<meta name="description" content="GenieAgent lead pipeline dashboard: Apollo discovery, Hunter verification, Gemini qualification and owner-approved outreach.">
-<title>GenieAgent | Lead Pipeline Dashboard</title>
+<meta name="description" content="GenieAgent client acquisition desk: strict lead verification, Apollo discovery, Hunter verification, Gemini qualification and owner-approved outreach.">
+<title>GenieAgent | Client Acquisition Desk</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%E2%9C%A6%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="assets/dashboard.css">
 </head>
@@ -14,8 +14,8 @@
 <header class="site-header">
   <div class="header-inner">
     <div>
-      <h1>GenieAgent <span>Pipeline</span></h1>
-      <p class="sub">Apollo discovery · Hunter verification · Gemini qualification · owner-approved Brevo &amp; WhatsApp outreach</p>
+      <h1>GenieAgent <span>Client Desk</span></h1>
+      <p class="sub">Verify first · Apollo discovery · Hunter verification · Gemini qualification · owner-approved outreach</p>
     </div>
     <div class="header-actions">
       <span id="generatedAt" class="pill">Loading snapshot…</span>
@@ -23,119 +23,195 @@
       <button id="exportBtn" type="button" class="btn btn-ghost">Export redacted CSV</button>
     </div>
   </div>
+  <nav class="tabs" aria-label="Dashboard sections" role="tablist">
+    <button class="tab" type="button" role="tab" data-view="overview" aria-selected="true">Overview</button>
+    <button class="tab" type="button" role="tab" data-view="leads" aria-selected="false">Leads</button>
+    <button class="tab" type="button" role="tab" data-view="conversations" aria-selected="false">Conversations</button>
+    <button class="tab" type="button" role="tab" data-view="automation" aria-selected="false">Automation</button>
+    <button class="tab" type="button" role="tab" data-view="settings" aria-selected="false">Settings</button>
+  </nav>
 </header>
 
 <main id="main" class="wrap">
   <section class="banner" id="safetyBanner" aria-live="polite">
-    <strong>Safety:</strong> automatic outreach is disabled. Emails and WhatsApp messages require a per-message owner approval, and only Hunter-verified business contacts are eligible.
+    <strong>Safety:</strong> automatic outreach is disabled. Only leads verified as genuine can be qualified, drafted or sent, and every message still requires a per-message owner approval.
   </section>
 
   <section class="notice" id="statusNotice" aria-live="polite" hidden></section>
 
-  <section aria-labelledby="kpiHeading">
-    <h2 id="kpiHeading" class="sr-only">Pipeline totals</h2>
-    <div class="kpi-grid" id="kpiGrid">
-      <article class="kpi"><small>Leads tracked</small><strong data-kpi="leads">—</strong></article>
-      <article class="kpi"><small>Verified business emails</small><strong data-kpi="verified_emails">—</strong></article>
-      <article class="kpi"><small>AI-qualified</small><strong data-kpi="qualified">—</strong></article>
-      <article class="kpi accent"><small>Awaiting your approval</small><strong data-kpi="drafts_pending_approval">—</strong></article>
-      <article class="kpi"><small>Messages sent</small><strong data-kpi="messages_sent">—</strong></article>
-      <article class="kpi"><small>Replies</small><strong data-kpi="replies">—</strong></article>
-      <article class="kpi"><small>Bounces / opt-outs</small><strong data-kpi="bounces">0 / 0</strong></article>
-      <article class="kpi"><small>Active orders</small><strong data-kpi="orders">—</strong></article>
-    </div>
-  </section>
+  <div class="view is-active" data-panel="overview">
+    <section aria-labelledby="kpiHeading">
+      <h2 id="kpiHeading" class="sr-only">Pipeline totals</h2>
+      <div class="kpi-grid" id="kpiGrid">
+        <article class="kpi accent"><small>Verified genuine</small><strong data-kpi="verified_genuine">—</strong></article>
+        <article class="kpi"><small>Under verification</small><strong data-kpi="verification_pending">—</strong></article>
+        <article class="kpi"><small>Rejected / fraud</small><strong data-kpi="rejected_fraud">—</strong></article>
+        <article class="kpi"><small>Leads tracked</small><strong data-kpi="leads">—</strong></article>
+        <article class="kpi"><small>Verified business emails</small><strong data-kpi="verified_emails">—</strong></article>
+        <article class="kpi"><small>AI-qualified</small><strong data-kpi="qualified">—</strong></article>
+        <article class="kpi"><small>Awaiting your approval</small><strong data-kpi="drafts_pending_approval">—</strong></article>
+        <article class="kpi"><small>Emails sent</small><strong data-kpi="emails_sent">—</strong></article>
+        <article class="kpi"><small>WhatsApp sent</small><strong data-kpi="whatsapp_sent">—</strong></article>
+        <article class="kpi"><small>Replies</small><strong data-kpi="replies">—</strong></article>
+        <article class="kpi"><small>Interested prospects</small><strong data-kpi="interested">—</strong></article>
+        <article class="kpi"><small>Orders confirmed</small><strong data-kpi="orders">—</strong></article>
+        <article class="kpi"><small>Bounces / opt-outs</small><strong data-kpi="bounces">0 / 0</strong></article>
+      </div>
+    </section>
 
-  <section class="panel" aria-labelledby="funnelHeading">
-    <h2 id="funnelHeading">Pipeline stages</h2>
-    <p class="muted">Each stage is a text-based measure, not a promise of income. Unverified contacts never reach outreach.</p>
-    <div class="funnel" id="funnel"></div>
-  </section>
+    <section class="panel" aria-labelledby="funnelHeading">
+      <h2 id="funnelHeading">Pipeline stages</h2>
+      <p class="muted">Each stage is a text-based measure, not a promise of income. Unverified and rejected leads never reach outreach.</p>
+      <div class="funnel" id="funnel"></div>
+    </section>
 
-  <section class="split">
-    <article class="panel" aria-labelledby="providersHeading">
-      <h2 id="providersHeading">Provider readiness</h2>
-      <p class="muted">Credential presence only. No key, token or mailbox is ever shown here.</p>
-      <ul class="provider-list" id="providers"></ul>
-    </article>
-    <article class="panel" aria-labelledby="coverageHeading">
-      <h2 id="coverageHeading">Coverage</h2>
-      <div class="coverage">
+    <section class="split">
+      <article class="panel" aria-labelledby="verificationHeading">
+        <h2 id="verificationHeading">Authenticity breakdown</h2>
+        <p class="muted">Deterministic checks over recorded evidence. Nothing is promoted without a source-linked requirement and a verified business contact.</p>
+        <div class="funnel" id="verificationBars"></div>
+      </article>
+      <article class="panel" aria-labelledby="coverageHeading">
+        <h2 id="coverageHeading">Coverage</h2>
+        <div class="coverage">
+          <div>
+            <h3>By country</h3>
+            <div class="bars" id="countryBars"></div>
+          </div>
+          <div>
+            <h3>By service fit</h3>
+            <div class="bars" id="serviceBars"></div>
+          </div>
+        </div>
+      </article>
+    </section>
+  </div>
+
+  <div class="view" data-panel="leads">
+    <section class="panel" aria-labelledby="leadsHeading">
+      <h2 id="leadsHeading">Leads</h2>
+      <p class="muted">Only <code>verified_genuine</code> leads can be qualified or drafted. Verification reasons and sources are shown per lead.</p>
+      <div class="toolbar">
+        <label class="sr-only" for="searchInput">Search leads</label>
+        <input id="searchInput" type="search" placeholder="Search company, country, service, domain…" autocomplete="off">
+        <label class="sr-only" for="statusFilter">Qualification status</label>
+        <select id="statusFilter">
+          <option value="">All qualification states</option>
+          <option value="qualified">Qualified</option>
+          <option value="pending">Pending</option>
+          <option value="needs_review">Needs review</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <label class="sr-only" for="verificationFilter">Verification status</label>
+        <select id="verificationFilter">
+          <option value="">All verification states</option>
+          <option value="verified_genuine">Verified genuine</option>
+          <option value="pending_verification">Pending verification</option>
+          <option value="rejected_fraud">Rejected / fraud</option>
+        </select>
+        <label class="sr-only" for="outreachFilter">Outreach status</label>
+        <select id="outreachFilter">
+          <option value="">All outreach states</option>
+          <option value="not_contacted">Not contacted</option>
+          <option value="draft_pending_approval">Draft pending approval</option>
+          <option value="sent">Sent</option>
+          <option value="replied">Replied</option>
+          <option value="bounced">Bounced</option>
+          <option value="opted_out">Opted out</option>
+        </select>
+        <label class="sr-only" for="scoreFilter">Minimum score</label>
+        <select id="scoreFilter">
+          <option value="0">Any score</option>
+          <option value="60">60+</option>
+          <option value="70">70+</option>
+          <option value="85">85+</option>
+        </select>
+      </div>
+      <p class="muted" id="leadCount" aria-live="polite">0 leads</p>
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Lead records with masked contact details</caption>
+          <thead>
+            <tr><th scope="col">Company</th><th scope="col">Country</th><th scope="col">Verification</th><th scope="col">Service fit</th><th scope="col">Score</th><th scope="col">Email</th><th scope="col">Outreach</th><th scope="col">Order</th><th scope="col">Updated</th></tr>
+          </thead>
+          <tbody id="leadRows"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="leadEmpty" hidden>No leads match the current filters.</p>
+    </section>
+  </div>
+
+  <div class="view" data-panel="conversations">
+    <section class="panel" aria-labelledby="approvalHeading">
+      <h2 id="approvalHeading">Outreach queue</h2>
+      <p class="muted">Approve or reject each draft in the private Google Sheets <code>Outreach</code> tab (or with <code>pipeline_approve.py</code>). Approved messages are sent only by a deliberate owner run.</p>
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Outreach drafts and their approval state</caption>
+          <thead>
+            <tr><th scope="col">Company</th><th scope="col">Channel</th><th scope="col">Recipient</th><th scope="col">Subject</th><th scope="col">Approval</th><th scope="col">Delivery</th><th scope="col">Created</th></tr>
+          </thead>
+          <tbody id="draftRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="activityHeading">
+      <h2 id="activityHeading">Recent activity</h2>
+      <p class="muted">Research, verification, qualification, approval, send and failure events. Contact details are redacted.</p>
+      <ol class="timeline" id="activityList"></ol>
+    </section>
+  </div>
+
+  <div class="view" data-panel="automation">
+    <section class="split">
+      <article class="panel" aria-labelledby="automationHeading">
+        <h2 id="automationHeading">Automation status</h2>
+        <p class="muted">Read from the latest run events. A schedule is not proof that a job ran: the last event below is.</p>
+        <dl class="kv" id="automationFacts"></dl>
+        <h3>Recent failures</h3>
+        <ul class="failure-list" id="failureList"></ul>
+      </article>
+      <article class="panel" aria-labelledby="providersHeading">
+        <h2 id="providersHeading">Provider readiness</h2>
+        <p class="muted">Credential presence only. No key, token or mailbox is ever shown here.</p>
+        <ul class="provider-list" id="providers"></ul>
+      </article>
+    </section>
+
+    <section class="panel" aria-labelledby="quarantineHeading">
+      <h2 id="quarantineHeading">Verification holds and rejections</h2>
+      <p class="muted">Leads that are not <code>verified_genuine</code> are blocked from qualification, drafting and sending. Fix the evidence, then re-run verification.</p>
+      <div class="split">
         <div>
-          <h3>By country</h3>
-          <div class="bars" id="countryBars"></div>
+          <h3>Fraud-suspected</h3>
+          <ul class="verification-list" id="rejectedList"></ul>
         </div>
         <div>
-          <h3>By service fit</h3>
-          <div class="bars" id="serviceBars"></div>
+          <h3>Pending verification</h3>
+          <ul class="verification-list" id="heldList"></ul>
         </div>
       </div>
-    </article>
-  </section>
+    </section>
+  </div>
 
-  <section class="panel" aria-labelledby="approvalHeading">
-    <h2 id="approvalHeading">Outreach queue</h2>
-    <p class="muted">Approve or reject each draft in the private Google Sheets <code>Outreach</code> tab (or with <code>pipeline_approve.py</code>). Approved messages are sent only by a deliberate owner run.</p>
-    <div class="table-wrap">
-      <table>
-        <caption class="sr-only">Outreach drafts and their approval state</caption>
-        <thead>
-          <tr><th scope="col">Company</th><th scope="col">Channel</th><th scope="col">Recipient</th><th scope="col">Subject</th><th scope="col">Approval</th><th scope="col">Delivery</th><th scope="col">Created</th></tr>
-        </thead>
-        <tbody id="draftRows"></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="panel" aria-labelledby="leadsHeading">
-    <h2 id="leadsHeading">Leads</h2>
-    <div class="toolbar">
-      <label class="sr-only" for="searchInput">Search leads</label>
-      <input id="searchInput" type="search" placeholder="Search company, country, service, domain…" autocomplete="off">
-      <label class="sr-only" for="statusFilter">Qualification status</label>
-      <select id="statusFilter">
-        <option value="">All qualification states</option>
-        <option value="qualified">Qualified</option>
-        <option value="pending">Pending</option>
-        <option value="needs_review">Needs review</option>
-        <option value="rejected">Rejected</option>
-      </select>
-      <label class="sr-only" for="outreachFilter">Outreach status</label>
-      <select id="outreachFilter">
-        <option value="">All outreach states</option>
-        <option value="not_contacted">Not contacted</option>
-        <option value="draft_pending_approval">Draft pending approval</option>
-        <option value="sent">Sent</option>
-        <option value="replied">Replied</option>
-        <option value="bounced">Bounced</option>
-        <option value="opted_out">Opted out</option>
-      </select>
-      <label class="sr-only" for="scoreFilter">Minimum score</label>
-      <select id="scoreFilter">
-        <option value="0">Any score</option>
-        <option value="60">60+</option>
-        <option value="70">70+</option>
-        <option value="85">85+</option>
-      </select>
-    </div>
-    <p class="muted" id="leadCount" aria-live="polite">0 leads</p>
-    <div class="table-wrap">
-      <table>
-        <caption class="sr-only">Lead records with masked contact details</caption>
-        <thead>
-          <tr><th scope="col">Company</th><th scope="col">Country</th><th scope="col">Service fit</th><th scope="col">Score</th><th scope="col">Email</th><th scope="col">Outreach</th><th scope="col">Order</th><th scope="col">Updated</th></tr>
-        </thead>
-        <tbody id="leadRows"></tbody>
-      </table>
-    </div>
-    <p class="empty" id="leadEmpty" hidden>No leads match the current filters.</p>
-  </section>
-
-  <section class="panel" aria-labelledby="activityHeading">
-    <h2 id="activityHeading">Recent activity</h2>
-    <p class="muted">Research, qualification, approval, send and failure events. Contact details are redacted.</p>
-    <ol class="timeline" id="activityList"></ol>
-  </section>
+  <div class="view" data-panel="settings">
+    <section class="panel" aria-labelledby="settingsHeading">
+      <h2 id="settingsHeading">Outreach and verification settings</h2>
+      <p class="muted">Effective configuration for this snapshot. Secrets are never included; change values through environment variables or GitHub Actions settings.</p>
+      <dl class="kv" id="settingsFacts"></dl>
+    </section>
+    <section class="panel" aria-labelledby="approvalSettingsHeading">
+      <h2 id="approvalSettingsHeading">Owner approval rules</h2>
+      <ul class="rules">
+        <li>Every outbound message needs a recorded owner email and approval timestamp.</li>
+        <li>Only <code>verified_genuine</code> leads with a verified business contact reach the approval queue.</li>
+        <li>Verifications expire after the configured age and must be re-checked before sending.</li>
+        <li>Opt-outs, bounces and suppression entries stop all further contact.</li>
+        <li>The owner alone approves pricing, agreements, project start and deliveries.</li>
+      </ul>
+    </section>
+  </div>
 
   <footer class="footer">
     <p>Static GitHub Pages dashboard. Data is generated by <code>scripts/pipeline_report.py</code> from <code>leads.csv</code>; no API keys, passwords or personal mobile numbers are published.</p>

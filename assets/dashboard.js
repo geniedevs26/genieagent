@@ -50,9 +50,9 @@
 
   function statusClass(value) {
     var text = String(value || "").toLowerCase();
-    if (["qualified", "sent", "delivered", "replied", "approved", "closed"].indexOf(text) >= 0) return "status good";
-    if (["rejected", "failed", "bounced", "opted_out", "blocked"].indexOf(text) >= 0) return "status bad";
-    if (["pending", "pending_owner_approval", "needs_review", "smtp_accepted", "draft_pending_approval"].indexOf(text) >= 0) return "status warn";
+    if (["qualified", "sent", "delivered", "replied", "approved", "closed", "verified_genuine"].indexOf(text) >= 0) return "status good";
+    if (["rejected", "failed", "bounced", "opted_out", "blocked", "rejected_fraud"].indexOf(text) >= 0) return "status bad";
+    if (["pending", "pending_owner_approval", "needs_review", "smtp_accepted", "draft_pending_approval", "pending_verification"].indexOf(text) >= 0) return "status warn";
     return "status";
   }
 
@@ -62,12 +62,18 @@
 
   function renderTotals(totals) {
     var mapping = {
+      verified_genuine: totals.verified_genuine,
+      verification_pending: totals.verification_pending,
+      rejected_fraud: totals.rejected_fraud,
       leads: totals.leads,
       verified_emails: totals.verified_emails,
       qualified: totals.qualified,
       drafts_pending_approval: totals.drafts_pending_approval,
       messages_sent: totals.messages_sent,
+      emails_sent: totals.emails_sent,
+      whatsapp_sent: totals.whatsapp_sent,
       replies: totals.replies,
+      interested: totals.interested,
       orders: totals.orders
     };
     Object.keys(mapping).forEach(function (key) {
@@ -83,6 +89,7 @@
     container.textContent = "";
     var rows = [
       { label: "Leads tracked", value: totals.leads },
+      { label: "Verified genuine", value: totals.verified_genuine },
       { label: "Verified emails", value: totals.verified_emails },
       { label: "AI-qualified", value: totals.qualified },
       { label: "Drafts ready for review", value: (totals.drafts_pending_approval || 0) + (totals.drafts_approved || 0) },
@@ -143,6 +150,112 @@
     list.appendChild(providerRow("Automatic outreach enabled", Boolean(safety.auto_outreach_enabled)));
   }
 
+  function renderVerification(verification) {
+    var container = $("#verificationBars");
+    if (!container) return;
+    container.textContent = "";
+    var rows = [
+      { label: "Verified genuine", value: verification.verified_genuine },
+      { label: "Pending verification", value: verification.pending_verification },
+      { label: "Rejected / fraud suspected", value: verification.rejected_fraud },
+      { label: "Not assessed yet", value: verification.unassessed },
+      { label: "Recheck due", value: verification.recheck_due }
+    ];
+    var max = Math.max.apply(null, rows.map(function (row) { return row.value || 0; }).concat([1]));
+    rows.forEach(function (row) {
+      var wrapper = el("div", "funnel-row");
+      wrapper.appendChild(el("span", "", row.label));
+      var bar = el("div", "funnel-bar");
+      var fill = el("i");
+      fill.style.width = Math.max(2, Math.round(((row.value || 0) / max) * 100)) + "%";
+      fill.style.background = row.label.indexOf("Rejected") === 0
+        ? "linear-gradient(90deg, #8a3b3b, #ff9b9b)"
+        : "linear-gradient(90deg, #3f8f7d, var(--accent))";
+      bar.appendChild(fill);
+      wrapper.appendChild(bar);
+      wrapper.appendChild(el("b", "", number(row.value)));
+      container.appendChild(wrapper);
+    });
+  }
+
+  function renderQuarantine(verification) {
+    [
+      { id: "#rejectedList", rows: verification.recent_rejections, empty: "No rejected leads." },
+      { id: "#heldList", rows: verification.recent_holds, empty: "No leads waiting on evidence." }
+    ].forEach(function (group) {
+      var list = $(group.id);
+      if (!list) return;
+      list.textContent = "";
+      if (!group.rows || !group.rows.length) {
+        list.appendChild(el("li", "empty", group.empty));
+        return;
+      }
+      group.rows.forEach(function (item) {
+        var row = el("li");
+        row.appendChild(el("strong", "", item.company || "Unknown company"));
+        row.appendChild(el("p", "muted", item.reason || "No reason recorded."));
+        if (item.sources) row.appendChild(el("p", "muted", item.sources));
+        list.appendChild(row);
+      });
+    });
+  }
+
+  function renderAutomation(automation, verification) {
+    var facts = $("#automationFacts");
+    if (!facts) return;
+    facts.textContent = "";
+    var entries = [
+      ["Last recorded event", automation.last_event_at ? formatDate(automation.last_event_at) : "No events yet"],
+      ["Last event", automation.last_event_summary || "—"],
+      ["Drafts pending approval", number(automation.pending_drafts)],
+      ["Approved, not yet sent", number(automation.approved_waiting)],
+      ["Verification holds", number(verification.pending_verification || 0)],
+      ["Fraud-suspected", number(verification.rejected_fraud || 0)],
+      ["Schedule", automation.schedule || "—"],
+      ["Sending requires", automation.sending_requires || "—"]
+    ];
+    entries.forEach(function (entry) {
+      facts.appendChild(el("dt", "", entry[0]));
+      facts.appendChild(el("dd", "", entry[1]));
+    });
+
+    var failures = $("#failureList");
+    failures.textContent = "";
+    if (!automation.recent_failures || !automation.recent_failures.length) {
+      failures.appendChild(el("li", "empty", "No failed events recorded."));
+      return;
+    }
+    automation.recent_failures.forEach(function (event) {
+      var item = el("li");
+      item.appendChild(el("time", "", formatDate(event.timestamp)));
+      item.appendChild(el("span", "", event.summary || "Failure"));
+      failures.appendChild(item);
+    });
+  }
+
+  function renderSettings(settings) {
+    var facts = $("#settingsFacts");
+    if (!facts) return;
+    facts.textContent = "";
+    var toggle = function (value) { return value ? "enabled" : "disabled"; };
+    var entries = [
+      ["Email sending", toggle(settings.outreach_send_enabled)],
+      ["WhatsApp sending", toggle(settings.whatsapp_send_enabled)],
+      ["Automatic outreach", toggle(settings.auto_outreach_enabled)],
+      ["Owner approval per message", settings.owner_approval_required ? "required" : "not required"],
+      ["Daily outreach limit", number(settings.outreach_daily_limit)],
+      ["Minimum qualification score", number(settings.outreach_min_score)],
+      ["Follow-up days", (settings.follow_up_days || []).join(", ") || "—"],
+      ["Verification maximum age", number(settings.verification_max_age_days) + " days"],
+      ["Legal basis label", settings.legal_basis || "not recorded"],
+      ["Suppressed recipients", number(settings.suppressed_recipients)]
+    ];
+    entries.forEach(function (entry) {
+      facts.appendChild(el("dt", "", entry[0]));
+      facts.appendChild(el("dd", "", entry[1]));
+    });
+  }
+
   function renderBars(container, data, maxItems) {
     container.textContent = "";
     var entries = Object.keys(data || {}).map(function (key) {
@@ -199,6 +312,7 @@
 
   function leadMatches(lead, filters) {
     if (filters.status && String(lead.qualification_status || "") !== filters.status) return false;
+    if (filters.verification && String(lead.verification_status || "") !== filters.verification) return false;
     if (filters.outreach && String(lead.outreach_status || "") !== filters.outreach) return false;
     if ((Number(lead.score) || 0) < filters.score) return false;
     if (!filters.query) return true;
@@ -214,6 +328,7 @@
     var filters = {
       query: $("#searchInput").value.trim().toLowerCase(),
       status: $("#statusFilter").value,
+      verification: $("#verificationFilter").value,
       outreach: $("#outreachFilter").value,
       score: Number($("#scoreFilter").value) || 0
     };
@@ -242,6 +357,17 @@
       row.appendChild(company);
 
       row.appendChild(el("td", "", lead.country || "—"));
+
+      var verification = el("td");
+      var badge = el("span", statusClass(lead.verification_status), humanize(lead.verification_status || "unassessed"));
+      if (lead.verification_reason) badge.title = lead.verification_reason;
+      verification.appendChild(badge);
+      if (lead.identity_status) {
+        verification.appendChild(document.createElement("br"));
+        verification.appendChild(el("span", "muted", "identity " + humanize(lead.identity_status)));
+      }
+      row.appendChild(verification);
+
       row.appendChild(el("td", "", lead.service_fit || "—"));
 
       var scoreCell = el("td");
@@ -285,6 +411,10 @@
     state.leads = data.leads || [];
     renderTotals(data.totals || {});
     renderFunnel(data.totals || {});
+    renderVerification(data.verification || {});
+    renderAutomation(data.automation || {}, data.verification || {});
+    renderQuarantine(data.verification || {});
+    renderSettings(data.settings || {});
     renderProviders(data.safety || {});
     renderBars($("#countryBars"), data.by_country, 8);
     renderBars($("#serviceBars"), data.by_service, 8);
@@ -301,11 +431,12 @@
     var filters = {
       query: $("#searchInput").value.trim().toLowerCase(),
       status: $("#statusFilter").value,
+      verification: $("#verificationFilter").value,
       outreach: $("#outreachFilter").value,
       score: Number($("#scoreFilter").value) || 0
     };
     var rows = state.leads.filter(function (lead) { return leadMatches(lead, filters); });
-    var columns = ["company", "country", "industry", "service_fit", "score", "qualification_status", "email_masked", "email_status", "outreach_status", "order_status", "source_provider", "source_url", "updated_at"];
+    var columns = ["company", "country", "industry", "verification_status", "verification_reason", "service_fit", "score", "qualification_status", "email_masked", "email_status", "outreach_status", "order_status", "source_provider", "source_url", "updated_at"];
     var lines = [columns.join(",")];
     rows.forEach(function (row) {
       lines.push(columns.map(function (column) {
@@ -347,10 +478,30 @@
       });
   }
 
+  function showView(name) {
+    var target = name || "overview";
+    var found = false;
+    document.querySelectorAll(".tab").forEach(function (tab) {
+      var active = tab.getAttribute("data-view") === target;
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+      tab.classList.toggle("is-active", active);
+      if (active) found = true;
+    });
+    if (!found) target = "overview";
+    document.querySelectorAll("[data-panel]").forEach(function (panel) {
+      panel.classList.toggle("is-active", panel.getAttribute("data-panel") === target);
+    });
+    if (history.replaceState) history.replaceState(null, "", "#" + target);
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     $("#refreshBtn").addEventListener("click", load);
     $("#exportBtn").addEventListener("click", exportCsv);
-    ["#searchInput", "#statusFilter", "#outreachFilter", "#scoreFilter"].forEach(function (selector) {
+    document.querySelectorAll(".tab").forEach(function (tab) {
+      tab.addEventListener("click", function () { showView(tab.getAttribute("data-view")); });
+    });
+    showView((location.hash || "#overview").slice(1));
+    ["#searchInput", "#statusFilter", "#verificationFilter", "#outreachFilter", "#scoreFilter"].forEach(function (selector) {
       var node = $(selector);
       node.addEventListener("input", renderLeads);
       node.addEventListener("change", renderLeads);

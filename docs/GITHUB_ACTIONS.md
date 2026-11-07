@@ -1,11 +1,12 @@
 # GitHub Actions configuration
 
-Three workflows were added. Existing workflows (`daily-lead-research.yml`,
+Four workflows were added. Existing workflows (`daily-lead-research.yml`,
 `remote-job-research.yml`, `static-security-checks.yml`) are unchanged.
 
 | Workflow | Trigger | Can it send? |
 | --- | --- | --- |
 | `genieagent-pipeline.yml` | every 6 hours (`41 */6 * * *`) + manual | **No.** `OUTREACH_SEND_ENABLED`, `AUTO_OUTREACH_ENABLED` and `WHATSAPP_SEND_ENABLED` are hard-coded to `"false"` in the job env. |
+| `genieagent-verification.yml` | daily (`17 4 * * *`) + manual | **No.** Re-runs strict verification, suppresses invalid queued drafts and refreshes the redacted snapshot. |
 | `genieagent-approved-send.yml` | **manual only** (`workflow_dispatch`) | Yes, only for drafts already marked approved, and only when the confirmation text matches. |
 | `pages.yml` | push to `main` touching dashboard files + manual | No. Builds and deploys the static dashboard. |
 
@@ -43,6 +44,8 @@ Non-secret configuration so you can see the current value:
 | `GENIE_OWNER_NAME` | `Siva Satya Prasad` |
 | `GENIE_PORTFOLIO_URL` | `https://...` |
 | `OUTREACH_MIN_SCORE` | `70` |
+| `GENIE_VERIFICATION_MAX_AGE_DAYS` | `30` (recheck age; stale verifications block outreach) |
+| `OUTREACH_LEGAL_BASIS` | `legitimate_interest_b2b` (recorded on verified leads) |
 | `OUTREACH_DAILY_LIMIT` | `10` |
 | `BREVO_SMTP_HOST`, `BREVO_SMTP_PORT` | `smtp-relay.brevo.com`, `587` |
 | `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` | verified sender |
@@ -60,7 +63,9 @@ Never put credentials in variables — they are visible in the UI and logs.
 
 1. checks out the repo,
 2. compiles the package and runs the offline test suite,
-3. runs `import,discover,enrich,qualify,draft,followups,sync,report`,
+3. runs `import,discover,enrich,verify,qualify,draft,followups,sync,report`,
+   where `verify` blocks every lead that is not `verified_genuine` from being
+   qualified or drafted (see [VERIFICATION.md](VERIFICATION.md)),
 4. refuses to proceed if `data/dashboard.json` contains a full email or a phone
    field,
 5. uploads the redacted snapshot as an artifact,

@@ -19,6 +19,14 @@ write the header row themselves. You can rename tabs with
 `GOOGLE_SHEETS_ACTIVITY_TAB`. Run `python scripts/pipeline_sync.py --direction pull`
 first to create them.
 
+The `Leads` tab also holds the strict verification audit columns
+(`verification_status`, `verification_reason`, `identity_status`,
+`verification_method`, `verification_sources`, `verification_checks`,
+`fraud_indicators`, `legal_basis`, `verification_checked_at`, `verified_at`,
+`verification_fingerprint`). They are appended automatically on the next write;
+see [VERIFICATION.md](VERIFICATION.md). Do not clear them by hand — the next
+`pipeline_verify.py` run recomputes them.
+
 ## 2. Option A — OAuth refresh token (no extra packages; good for Termux)
 
 1. **APIs & Services → OAuth consent screen**: choose External, fill the app

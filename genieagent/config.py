@@ -169,6 +169,10 @@ class Config:
     outreach_followup_days: Tuple[int, ...] = (5, 12, 21)
     suppressed_emails: Tuple[str, ...] = ()
 
+    # strict verification
+    verification_max_age_days: int = 30
+    outreach_legal_basis: str = "legitimate_interest_b2b"
+
     # brevo smtp
     brevo_smtp_host: str = DEFAULT_BREVO_HOST
     brevo_smtp_port: int = DEFAULT_BREVO_PORT
@@ -257,6 +261,8 @@ class Config:
             suppressed_emails=tuple(
                 item.lower() for item in _csv_list(source, "SUPPRESSED_EMAILS")
             ),
+            verification_max_age_days=_int(source, "GENIE_VERIFICATION_MAX_AGE_DAYS", 30, 1, 3650),
+            outreach_legal_basis=_text(source, "OUTREACH_LEGAL_BASIS", "legitimate_interest_b2b"),
             brevo_smtp_host=_text(source, "BREVO_SMTP_HOST", DEFAULT_BREVO_HOST),
             brevo_smtp_port=_int(source, "BREVO_SMTP_PORT", DEFAULT_BREVO_PORT, 1, 65535),
             brevo_smtp_login=_text(source, "BREVO_SMTP_LOGIN"),
@@ -346,6 +352,8 @@ class Config:
             "auto_outreach_enabled": self.auto_outreach_enabled,
             "automatic_outreach": False,
             "owner_email_configured": bool(self.owner_email),
+            "verification_max_age_days": self.verification_max_age_days,
+            "outreach_legal_basis": self.outreach_legal_basis,
         }
 
     def secrets(self) -> List[str]:

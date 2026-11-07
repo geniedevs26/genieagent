@@ -15,6 +15,7 @@ from genieagent.pipeline import (
     stage_import_candidates,
     stage_qualify,
     stage_send,
+    stage_verify,
 )
 from genieagent.storage.csv_store import leads_table, outreach_table
 from genieagent.util import now_iso
@@ -107,11 +108,17 @@ class PipelineEndToEndTests(unittest.TestCase):
         self.assertEqual(lead["email_status"], "valid")
         self.assertTrue(lead["email_verified_at"])
 
-        # E: qualification uses recorded evidence only
+        # D2: strict verification separates the genuine buyer from the bare
+        # company record (which has no stated requirement or contact).
+        verified = stage_verify(self.config)
+        self.assertEqual(verified["verified"], 1, json.dumps(verified, indent=2))
+        self.assertGreaterEqual(verified["pending"], 1)
+
+        # E: qualification uses recorded evidence only, and only for verified leads
         gemini = FakeGemini(score=91)
         qualified = stage_qualify(self.config, gemini=gemini)
         self.assertEqual(qualified["qualified"], 1)
-        self.assertGreaterEqual(qualified["blocked_without_evidence"], 1)
+        self.assertGreaterEqual(qualified["blocked_unverified"], 1)
         leads = leads_table(self.config.leads_csv).load()
         acme = next(row for row in leads if row["domain"] == "acme.com")
         beta = next(row for row in leads if row["domain"] == "betadental.com")

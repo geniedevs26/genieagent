@@ -27,6 +27,7 @@ from ..models import (
 )
 from ..providers.gemini import validate_draft
 from ..qualify import email_is_contactable
+from ..verification import verification_gate
 from ..util import days_since, mask_recipient, now_iso, stable_id
 
 
@@ -70,6 +71,10 @@ def prepare_drafts(
     lead_id = str(lead.get("lead_id") or "")
     if not lead_id:
         return drafts, ["Lead has no lead_id."]
+
+    blocker = verification_gate(lead, config)
+    if blocker:
+        return drafts, ["Verification: " + blocker]
 
     portfolio = config.portfolio_url or ""
     problems = validate_draft(generated, portfolio_url=portfolio)
@@ -213,6 +218,9 @@ def approval_gate(
         return False, f"Qualification score {score} is below OUTREACH_MIN_SCORE={config.outreach_min_score}."
     if str(lead.get("do_not_contact") or "").lower() == "true":
         return False, "Lead is marked do-not-contact."
+    verification_reason = verification_gate(lead, config)
+    if verification_reason:
+        return False, verification_reason
     if str(lead.get("outreach_status") or "") in {OUTREACH_OPTED_OUT, OUTREACH_BOUNCED}:
         return False, "Lead opted out or bounced previously."
     if already_contacted([row for row in all_drafts if row.get("draft_id") != draft.get("draft_id")], str(lead.get("lead_id") or ""), str(draft.get("channel") or "")):

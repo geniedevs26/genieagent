@@ -182,6 +182,37 @@ td a:hover { text-decoration: underline; }
   .funnel-row { grid-template-columns: 105px 1fr 40px; font-size: 12px; }
 }
 
+.tabs {
+  max-width: 1320px; margin: 0 auto; padding: 0 clamp(12px, 3vw, 32px);
+  display: flex; flex-wrap: wrap; gap: 2px 6px; overflow-x: auto; border-top: 1px solid var(--line);
+}
+.tab {
+  font: inherit; cursor: pointer; white-space: nowrap; color: var(--muted);
+  background: transparent; border: 0; border-bottom: 2px solid transparent;
+  padding: 11px 12px; font-weight: 600; font-size: 13.5px;
+}
+.tab:hover { color: var(--text); }
+.tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.view { display: none; }
+.view.is-active { display: block; }
+
+.kv { display: grid; grid-template-columns: minmax(150px, 40%) 1fr; gap: 8px 14px; margin: 0; }
+.kv dt { color: var(--muted); font-size: 13px; }
+.kv dd { margin: 0; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+
+.verification-list, .failure-list, .rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.verification-list li, .failure-list li {
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #0f1929;
+}
+.verification-list p { margin: 4px 0 0; overflow-wrap: anywhere; }
+.kv dd, .failure-list li, .timeline li { overflow-wrap: anywhere; }
+.failure-list li { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+.failure-list time { color: var(--muted); font-size: 11.5px; }
+.rules { padding-left: 18px; list-style: disc; font-size: 13.5px; color: var(--muted); }
+.rules li::marker { color: var(--accent); }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   * { transition: none !important; }

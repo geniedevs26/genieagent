@@ -59,7 +59,7 @@ Orchestration options (same Python code):
 
 * **Termux**: `python scripts/run_pipeline.py --stages ...`
 * **n8n**: `n8n/genieagent_pipeline.workflow.json` + manual sender workflow
-* **GitHub Actions**: `.github/workflows/genieagent-pipeline.yml` (schedule, never sends) and `genieagent-approved-send.yml` (manual only)
+* **GitHub Actions**: `.github/workflows/genieagent-pipeline.yml` (schedule, never sends), `genieagent-verification.yml` (verification recheck, never sends) and `genieagent-approved-send.yml` (manual only)
 
 ## 3. Required workflow mapping
 
@@ -69,6 +69,7 @@ Orchestration options (same Python code):
 | B. Collect company information with Apollo | Same stage: name, domain, website, country, industry, employee range, Apollo id stored as `source_ref` |
 | C. Find/verify emails with Hunter | `scripts/pipeline_enrich.py`: verifies existing public emails; otherwise `domain-search` then `email-verifier` |
 | D. Remove duplicates | `genieagent/normalize.py`: normalised company key, domain, email; `dedupe_leads` merges, keeping verified facts |
+| D2. Strict authenticity + fraud verification | `scripts/pipeline_verify.py`: deterministic three-level review over recorded evidence; only `verified_genuine` may be qualified or drafted, and revoked leads have queued drafts suppressed ([docs/VERIFICATION.md](VERIFICATION.md)) |
 | E. Qualify on genuine need/fit | `scripts/pipeline_qualify.py`: Gemini JSON-schema result; leads without source-linked evidence are marked `needs_review`, never scored |
 | F. Personalized drafts | `scripts/pipeline_draft.py`: Gemini drafts + deterministic validation (length, placeholders, portfolio link) |
 | G. Save leads/scores/sources/status in Sheets | `genieagent/storage/sheets.py`; every stage pushes to `Leads`/`Outreach`; full audit in `Activity` |

@@ -31,7 +31,9 @@ def requirement_evidence(lead: Dict[str, Any]) -> str:
     evidence = " ".join(piece for piece in pieces if piece).strip()
     if len(evidence) < 40:
         return ""
-    source = str(lead.get("source_url") or lead.get("website") or "").strip()
+    # The requirement itself must be source-linked. A company homepage is not a
+    # stated requirement, so ``website`` is deliberately not used as a fallback.
+    source = str(lead.get("source_url") or "").strip()
     if not source.startswith("http"):
         return ""
     return evidence

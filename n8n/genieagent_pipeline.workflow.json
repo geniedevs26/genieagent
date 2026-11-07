@@ -24,7 +24,7 @@
     },
     {
       "parameters": {
-        "command": "cd \"$HOME/genieagent\" && python scripts/run_pipeline.py --stages import,discover,enrich,qualify,draft,followups,sync,report --limit 25",
+        "command": "cd \"$HOME/genieagent\" && python scripts/run_pipeline.py --stages import,discover,enrich,verify,qualify,draft,followups,sync,report --limit 25",
         "executeOnce": true
       },
       "id": "0a1b2c3d-1111-4a01-9aaa-000000000002",
