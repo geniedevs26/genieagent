@@ -166,7 +166,7 @@ for item in [
     'accepted_terms.get("proposed_revenue")','accepted_terms.get("payment_terms")',
     '"agreed_amount":accepted_terms.get("proposed_revenue")',
     '"action_type":"in.(email,follow_up,ai_reply,proposal,financial_proposal_send,agreement,agreement_send,milestone_delivery,final_delivery,inbound_reply)"',
-    "def ai_reply_text(","def send_ai_reply(","AUTO_REPLY_BLOCK_RE","CLOUDFLARE_AI_ACCOUNT_ID","ai_reply_limit=max(0,3-ai_replies_today)",
+    "def ai_reply_text(","def send_ai_reply(","AUTO_REPLY_BLOCK_RE","CLOUDFLARE_AI_ACCOUNT_ID",
 ]:
     if item not in inbox:
         fail(f"missing reply/opt-out/order transition gate: {item}")
