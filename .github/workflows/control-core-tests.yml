@@ -13,6 +13,7 @@ on:
   pull_request:
     paths:
       - 'supabase/migrations/20261107120000_add_central_automation_controls.sql'
+      - 'supabase/migrations/20261107121000_restrict_suppression_trigger_function.sql'
       - 'scripts/automation_control.py'
       - 'tests/**'
       - '.github/workflows/control-core-tests.yml'
@@ -59,7 +60,7 @@ jobs:
           grant select on auth.users to authenticated, service_role;
           create function public.block_suppressed_outreach() returns trigger
             language plpgsql security definer set search_path=public
-            as $ begin return new; end $;
+            as $$ begin return new; end $$;
           SQL
       - name: Apply migration to isolated PostgreSQL
         env:
