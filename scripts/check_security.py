@@ -249,18 +249,23 @@ for item in [
     '"state": "eq.running"',
     '"enabled": "eq.true"',
     "fail-closed",
+    "contact_suppressions",
 ]:
     if item not in controls:
         fail(f"missing central automation safety control: {item}")
 for source, required in [
     (outreach, "assert_outbound_enabled(key, owner_id, channel)"),
     (inbox, 'assert_outbound_enabled(key, owner_id, "ai_reply")'),
-    (executor, 'assert_outbound_enabled(key, owner_id, "client_stage_email")'),
+    (executor, 'assert_outbound_enabled(key, owner_id, "client_stage_email", recipient=(lead.get("contact_email") or "").strip())'),
 ]:
     if required not in source:
         fail("an outbound worker is missing its central automation control check")
 if "DAILY_LIMIT" in outreach or "ai_reply_limit" in inbox:
     fail("arbitrary owner-imposed daily outbound caps must not replace provider quotas")
+if 'suppress_contact(key,owner_id,lead["id"],sender,"opt_out","inbound_email")' not in inbox:
+    fail("inbound opt-outs must be written to the shared suppression table")
+if 'suppress_contact(key,owner_id,lead["id"],recipient,"bounce","inbound_bounce")' not in inbox:
+    fail("bounced addresses must be written to the shared suppression table")
 print("PASS: authenticated CRM, direct-buyer research, private job sync, fail-closed global/channel outbound controls, opt-out gates, and owner-approved order stages.")
 
 # Regression policy is maintained alongside the research-first qualification workflow.
