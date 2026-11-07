@@ -18,6 +18,7 @@ from datetime import datetime, timezone, timedelta
 from email.header import decode_header
 from email.utils import parseaddr
 from email.message import EmailMessage
+from automation_control import assert_outbound_enabled, OutboundBlocked
 
 SUPABASE_URL = "https://irpqaoooosrjhviwdddo.supabase.co"
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
@@ -77,6 +78,20 @@ def create_stage_request(key, owner_id, order, stage, title, subject, body):
     }],"return=representation") or []
     return rows[0]["id"] if rows else None
 
+def suppress_contact(key, owner_id, lead_id, contact, reason, source):
+    normalized=re.sub(r"[^a-z0-9@+.]", "", (contact or "").strip().lower())
+    if not normalized: return
+    query=urllib.parse.urlencode({
+        "owner_id":"eq."+owner_id,"contact_normalized":"eq."+normalized,
+        "channel":"in.(email,all)","select":"id","limit":"1"
+    })
+    existing=api("/rest/v1/contact_suppressions?"+query,key) or []
+    if existing: return
+    api("/rest/v1/contact_suppressions",key,"POST",[{
+        "owner_id":owner_id,"lead_id":lead_id,"contact_value":contact,
+        "channel":"email","reason":reason,"source":source
+    }],"return=minimal")
+
 def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, now):
     combined=subject+"\n"+reply_body
     if OPTOUT_RE.search(combined):
@@ -90,6 +105,7 @@ def create_or_advance_order(key, owner_id, lead, sender, subject, reply_body, no
         api("/rest/v1/leads?id=eq."+lead["id"],key,"PATCH",{
             "payload":payload,"lead_status":"do_not_contact","updated_at":now
         },"return=minimal")
+        suppress_contact(key,owner_id,lead["id"],sender,"opt_out","inbound_email")
         event(key,owner_id,"client_opt_out","blocked","Client opt-out recorded; all future outreach suppressed.",{"lead_id":lead["id"],"sender":sender})
         return "opt_out"
 
@@ -315,6 +331,11 @@ def ai_reply_text(account_id, token, subject, body, lead):
 
 def send_ai_reply(key, owner_id, lead, recipient, subject, answer, message_id, host, port, username, password, sender):
     import uuid
+    try:
+        assert_outbound_enabled(key, owner_id, "ai_reply", recipient=recipient)
+    except OutboundBlocked as exc:
+        print("Automatic buyer reply held: " + str(exc))
+        return False
     action_id=str(uuid.uuid4())
     msg=EmailMessage()
     msg["From"]=sender
@@ -386,9 +407,6 @@ def main():
     mail=imaplib.IMAP4_SSL(host,port,timeout=20)
     processed=replies=bounces=ignored=orders_created=approvals_created=optouts=ai_replies=ai_held=intake_replies=0
     today=datetime.now(timezone.utc).date().isoformat()
-    ai_replies_today=sum(1 for a in actions if a.get("action_type")=="ai_reply"
-                         and (a.get("created_at") or "").startswith(today))
-    ai_reply_limit=max(0,3-ai_replies_today)
     try:
         mail.login(username,password)
         status,_=mail.select(folder)
@@ -443,6 +461,7 @@ def main():
                 },"return=minimal")
                 lead=leads_by_id.get(original.get("lead_id"))
                 if lead:
+                    suppress_contact(key,owner_id,lead["id"],recipient,"bounce","inbound_bounce")
                     payload=lead.get("payload") if isinstance(lead.get("payload"),dict) else {}
                     payload["emailDeliveryStatus"]="bounced"
                     payload["contactVerified"]="No"
@@ -500,7 +519,7 @@ def main():
                         except ValueError: smtp_port=587
                         # Scope/budget intake is deterministic and does not consume the AI quota.
                         answer=(scope_intake_reply_text(lead,subject,text) if result=="scope_intake_reply"
-                                else ai_reply_text(account_id,token,subject,text,lead) if ai_replies<ai_reply_limit else "")
+                                else ai_reply_text(account_id,token,subject,text,lead))
                         if answer and all([smtp_host,smtp_user,smtp_pass,sender_email]):
                             if send_ai_reply(key,owner_id,lead,sender,subject,answer,message_id,
                                              smtp_host,smtp_port,smtp_user,smtp_pass,sender_email):

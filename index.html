@@ -37,6 +37,7 @@ body.authenticated>header{position:sticky;top:0;z-index:20;background:#0b1020f2;
 #automationCard p{margin:4px 0}
 #autoLoadBtn{white-space:nowrap}
 @media(max-width:650px){body.authenticated>header{position:static}.quicknav{top:0}.quicknav a{font-size:12px;padding:7px 10px}#automationCard{grid-template-columns:1fr}.panel{padding:14px}}
+.control-panel{margin-top:12px;padding:14px;border:1px solid #38536a;border-radius:12px;background:#0d1928}.control-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.channel-switches{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.channel-switch{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:#101c30}.channel-switch span{font-size:13px}.channel-switch button{padding:5px 9px;font-size:12px}@media(max-width:560px){.channel-switches{grid-template-columns:1fr}}
 </style>
 <style id="genie-simple-view">
 /* One screen at a time: keep the owner interface deliberately small. */
@@ -68,7 +69,19 @@ body.authenticated main.wrap>.footer{display:none!important}
 <nav class="quicknav" aria-label="Main navigation"><a href="#automationCard" data-view="dashboard">Dashboard</a><a href="#leadRowsPanel" data-view="leads">Leads</a><a href="#remoteJobsPanel" data-view="jobs">Remote Jobs</a><a href="#financialQueuePanel" data-view="orders">Orders & approvals</a><a href="#automationHistoryPanel" data-view="activity">Activity records</a><a href="#financeLedgerPanel" data-view="income">Income / expenses</a></nav>
 <main class="wrap">
 <div class="notice"><strong>How to use:</strong> Dashboard = totals · Leads = verified buyer requests · Orders = buyer-confirmed order intent and owner financial/legal approvals · Activity = all communication and research history.</div>
-<section id="automationCard" class="panel"><div><h2>Hourly lead research automation</h2><p><strong>Scheduled: every hour.</strong> Searches independent public search sources and checks pages for stated business requirements.</p><p id="lastRunSummary" class="muted">Loading latest completed research run…</p><p class="muted">Research searches global business websites and buyer communities each hour, checks up to 300 source pages, and rechecks previously seen pages when their scheduled recheck time arrives. Paid-confirmed buyer requests are separated from unconfirmed research. Only qualified requests with explicit paid/contract intent and a verified public email can receive automatic tailored inquiries and bounded follow-ups; inbox monitoring handles replies, bounces and opt-outs. Financial/legal actions wait for your approval after buyer order intent. AI phone calling is not connected.</p></div><button id="automationOpenBtn" class="primary">Open automation history ↗</button></section>
+<section id="automationCard" class="panel"><div><h2>Hourly lead research automation</h2><p><strong>Scheduled: every hour.</strong> Searches independent public search sources and checks pages for stated business requirements.</p><p id="lastRunSummary" class="muted">Loading latest completed research run…</p>
+<div id="automationControls" class="control-panel" aria-live="polite">
+  <div class="control-heading"><strong>Global automation controls</strong><span id="automationStateLabel" class="pill">Loading controls…</span></div>
+  <p id="automationControlMessage" class="muted">Outbound work remains blocked until the owner enables it here.</p>
+  <div class="actions">
+    <button id="startAllBtn" class="primary" type="button">Start All</button>
+    <button id="pauseAllBtn" type="button">Pause All</button>
+    <button id="resumeAllBtn" type="button">Resume</button>
+    <button id="emergencyStopBtn" class="danger" type="button">Emergency Stop</button>
+    <button id="resetEmergencyBtn" type="button" class="hide">Reset Emergency Stop</button>
+  </div>
+  <div class="channel-switches" id="channelSwitches"></div>
+</div><p class="muted">Research searches global business websites and buyer communities each hour, checks up to 300 source pages, and rechecks previously seen pages when their scheduled recheck time arrives. Paid-confirmed buyer requests are separated from unconfirmed research. Only qualified requests with explicit paid/contract intent and a verified public email can receive automatic tailored inquiries and bounded follow-ups; inbox monitoring handles replies, bounces and opt-outs. Financial/legal actions wait for your approval after buyer order intent. AI phone calling is not connected.</p></div><button id="automationOpenBtn" class="primary">Open automation history ↗</button></section>
 <section class="panel" id="leadDiscoveryCoverage">
 <h2>Global lead discovery coverage</h2>
 <p class="muted">The research engine searches six independent public search providers: Bing, DuckDuckGo, Google, Mojeek, Startpage and Ecosia. It rotates through search-result pages each hour, skips URLs that are not yet due for recheck in the persistent research history, and checks up to 300 source pages per run, with a cap of 50 qualified records per run.</p>
@@ -259,6 +272,114 @@ window.genieDb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KE
 window.genieSession=null;
 async function logApprovedAction(x,type,body,recipient){if(!window.genieSession||!isUuid(x.id))throw Error('Sign in and save this lead to the private database before approving outreach.');const kind=type==='followup'?'follow_up':type==='call'?'call':type==='proposal'?'proposal':'email';const {error}=await window.genieDb.from('outreach_actions').insert({owner_id:window.genieSession.user.id,lead_id:x.id,action_type:kind,draft_subject:type==='proposal'?'Proposal for '+x.company:type==='followup'?'Follow-up regarding '+x.company:'GenieDevs outreach — '+x.company,draft_body:body||'',recipient:recipient||null,approval_status:'approved',approved_at:new Date().toISOString(),result_notes:'Owner approved. GenieAgent opens the local email/calling app; this does not confirm sending or call completion.'});if(error)throw error;}
 
+const CONTROL_CHANNELS=[
+ {id:'email',label:'First-contact email'},
+ {id:'follow_up',label:'Follow-up email'},
+ {id:'ai_reply',label:'Automatic buyer replies'},
+ {id:'client_stage_email',label:'Owner-approved order emails'}
+];
+let currentAutomationState='paused';
+let currentChannelStates={};
+function renderAutomationControls(){
+ const label=$('automationStateLabel'),msg=$('automationControlMessage');
+ if(!label||!msg)return;
+ label.textContent=currentAutomationState.replace('_',' ').toUpperCase();
+ label.className='pill '+(currentAutomationState==='running'?'replied':currentAutomationState==='emergency_stopped'?'optout':'');
+ msg.textContent=currentAutomationState==='running'
+  ?'Global automation is running. Each outbound channel still has its own independent switch.'
+  :currentAutomationState==='emergency_stopped'
+   ?'Emergency stop is active. No outbound worker can send. Reset it before resuming.'
+   :'Automation is paused. Research may continue; outbound channels remain governed by their switches.';
+ $('resetEmergencyBtn').classList.toggle('hide',currentAutomationState!=='emergency_stopped');
+ $('resumeAllBtn').disabled=currentAutomationState!=='paused';
+ $('startAllBtn').disabled=currentAutomationState==='emergency_stopped';
+ $('channelSwitches').innerHTML=CONTROL_CHANNELS.map(c=>{
+  const on=currentChannelStates[c.id]===true;
+  return '<div class="channel-switch"><span>'+esc(c.label)+'</span><button type="button" data-control-channel="'+c.id+'" aria-pressed="'+on+'">'+(on?'Enabled':'Disabled')+'</button></div>';
+ }).join('');
+}
+async function loadAutomationControls(){
+ if(!window.genieSession)return;
+ try{
+  const uid=window.genieSession.user.id;
+  let {data:global,error}=await window.genieDb.from('automation_controls').select('state').eq('owner_id',uid).maybeSingle();
+  if(error)throw error;
+  if(!global){
+   const {error:insertError}=await window.genieDb.from('automation_controls').insert({owner_id:uid,state:'paused'});
+   if(insertError)throw insertError;
+   global={state:'paused'};
+  }
+  currentAutomationState=global.state||'paused';
+  let {data:channels,error:channelError}=await window.genieDb.from('channel_controls').select('channel,enabled').eq('owner_id',uid);
+  if(channelError)throw channelError;
+  const found=new Set((channels||[]).map(x=>x.channel));
+  const missing=CONTROL_CHANNELS.filter(x=>!found.has(x.id)).map(x=>({owner_id:uid,channel:x.id,enabled:false}));
+  if(missing.length){
+   const {error:insertError}=await window.genieDb.from('channel_controls').insert(missing);
+   if(insertError)throw insertError;
+   channels=[...(channels||[]),...missing];
+  }
+  currentChannelStates={};
+  (channels||[]).forEach(x=>currentChannelStates[x.channel]=x.enabled===true);
+  renderAutomationControls();
+ }catch(error){
+  $('automationStateLabel').textContent='CONTROLS UNAVAILABLE';
+  $('automationControlMessage').textContent='Outbound remains fail-closed. Apply the central automation-controls migration before using these switches. '+error.message;
+  $('startAllBtn').disabled=true;$('resumeAllBtn').disabled=true;
+ }
+}
+async function saveAutomationState(state){
+ if(!window.genieSession)throw Error('Owner login required.');
+ const uid=window.genieSession.user.id;
+ const {error}=await window.genieDb.from('automation_controls').upsert({owner_id:uid,state,updated_at:new Date().toISOString(),updated_by:uid},{onConflict:'owner_id'});
+ if(error)throw error;
+ currentAutomationState=state;
+}
+async function setAllChannels(enabled){
+ if(!window.genieSession)throw Error('Owner login required.');
+ const uid=window.genieSession.user.id;
+ const rows=CONTROL_CHANNELS.map(c=>({owner_id:uid,channel:c.id,enabled,updated_at:new Date().toISOString(),updated_by:uid}));
+ const {error}=await window.genieDb.from('channel_controls').upsert(rows,{onConflict:'owner_id,channel'});
+ if(error)throw error;
+ CONTROL_CHANNELS.forEach(c=>currentChannelStates[c.id]=enabled);
+}
+$('startAllBtn').onclick=async()=>{
+ if(currentAutomationState==='emergency_stopped')return alert('Reset Emergency Stop first.');
+ if(!confirm('Start all automation channels, including first-contact email, follow-ups, AI replies and owner-approved order emails?'))return;
+ try{await saveAutomationState('running');await setAllChannels(true);renderAutomationControls();alert('Automation enabled. Owner-approved financial, agreement, project-start and delivery gates remain mandatory.');}
+ catch(e){alert('Could not start automation: '+e.message);await loadAutomationControls();}
+};
+$('pauseAllBtn').onclick=async()=>{
+ try{await saveAutomationState('paused');renderAutomationControls();}
+ catch(e){alert('Could not pause automation: '+e.message);}
+};
+$('resumeAllBtn').onclick=async()=>{
+ if(currentAutomationState!=='paused')return;
+ try{await saveAutomationState('running');renderAutomationControls();}
+ catch(e){alert('Could not resume automation: '+e.message);}
+};
+$('emergencyStopBtn').onclick=async()=>{
+ if(!confirm('Emergency Stop immediately blocks every outbound channel. Continue?'))return;
+ try{await saveAutomationState('emergency_stopped');await setAllChannels(false);renderAutomationControls();alert('Emergency Stop is active.');}
+ catch(e){alert('Emergency Stop could not be confirmed: '+e.message);await loadAutomationControls();}
+};
+$('resetEmergencyBtn').onclick=async()=>{
+ if(currentAutomationState!=='emergency_stopped'||!confirm('Reset Emergency Stop? Automation will remain paused and all channels disabled.'))return;
+ try{await saveAutomationState('paused');await setAllChannels(false);renderAutomationControls();}
+ catch(e){alert('Could not reset emergency stop: '+e.message);}
+};
+$('channelSwitches').addEventListener('click',async e=>{
+ const channel=e.target.dataset.controlChannel;if(!channel)return;
+ if(currentAutomationState!=='running')return alert('Resume global automation before enabling a channel.');
+ const enabled=currentChannelStates[channel]!==true;
+ try{
+  const uid=window.genieSession.user.id;
+  const {error}=await window.genieDb.from('channel_controls').upsert({owner_id:uid,channel,enabled,updated_at:new Date().toISOString(),updated_by:uid},{onConflict:'owner_id,channel'});
+  if(error)throw error;
+  currentChannelStates[channel]=enabled;renderAutomationControls();
+ }catch(error){alert('Channel setting could not be saved: '+error.message);}
+});
+
 async function loadAudit(){if(!window.genieSession)return;const [events,approvals,actions]=await Promise.all([window.genieDb.from('automation_events').select('*').order('occurred_at',{ascending:false}).limit(200),window.genieDb.from('financial_approvals').select('id,lead_id,approval_type,approval_status,currency,proposed_revenue,estimated_costs,estimated_net_profit,scope_summary,created_at').order('created_at',{ascending:false}).limit(100),window.genieDb.from('outreach_actions').select('*').order('created_at',{ascending:false}).limit(200)]);const actionRows=actions.error?[]:(actions.data||[]);const renderActions=(items)=>items.length?'<div class="table-wrap"><table><thead><tr><th>Date</th><th>Lead</th><th>Recipient / number</th><th>Status</th><th>Details</th></tr></thead><tbody>'+items.map(a=>'<tr><td>'+esc(a.executed_at||a.created_at||'')+'</td><td>'+esc(leads.find(x=>x.id===a.lead_id)?.company||a.lead_id||'—')+'</td><td>'+esc(a.recipient||a.phone_number||'—')+'</td><td>'+esc(a.approval_status||'recorded')+'</td><td>'+esc(a.result_notes||a.draft_subject||a.action_type||'')+'</td></tr>').join('')+'</tbody></table></div>':'No records yet.';const emailRows=actionRows.filter(a=>['email','follow_up'].includes(String(a.action_type||'').toLowerCase())&&(String(a.approval_status||'').toLowerCase()==='delivered'||String(a.approval_status||'').toLowerCase()==='delivery_verified'||String(a.delivery_status||'').toLowerCase()==='delivered'));const callRows=actionRows.filter(a=>String(a.action_type||'').toLowerCase().includes('call')&&(String(a.approval_status||'').toLowerCase()==='connected_verified'||String(a.approval_status||'').toLowerCase()==='connected'||String(a.call_status||'').toLowerCase()==='connected'));$('emailStat').textContent=emailRows.length;$('callStat').textContent=callRows.length;$('contactedStat').textContent=emailRows.length+callRows.length;$('replyStat').textContent=leads.filter(x=>['Replied','Meeting / discussion','Proposal sent','Won'].includes(x.status)).length;$('emailRecords').innerHTML=actions.error?'Email records unavailable: '+esc(actions.error.message):renderActions(emailRows);$('callRecords').innerHTML=actions.error?'Call records unavailable: '+esc(actions.error.message):renderActions(callRows);const allEvents=events.data||[];const latestResearch=allEvents.find(e=>e.event_type==='research_completed');if($('lastRunSummary'))$('lastRunSummary').textContent=latestResearch?.summary||'No completed research run recorded yet.';const eventConfirmations=allEvents.filter(e=>/reply|confirm|order|approval|won/i.test(String(e.event_type||'')+' '+String(e.summary||''))).map(e=>({created_at:e.occurred_at,lead_id:e.entity_id,approval_status:e.event_status,result_notes:e.summary,recipient:e.entity_table,action_type:e.event_type}));const leadConfirmations=leads.filter(x=>['Replied','Meeting / discussion','Proposal sent','Won'].includes(x.status)).map(x=>({created_at:x.updated||x.created||'',lead_id:x.id,approval_status:x.status,result_notes:x.notes||'CRM stage recorded; verify original client message before treating as an accepted order.',recipient:x.email||x.website,action_type:'CRM client response / order stage'}));$('confirmationRecords').innerHTML=events.error?'Confirmation records unavailable: '+esc(events.error.message):renderActions([...leadConfirmations,...eventConfirmations].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))));if(events.error){$('automationHistory').textContent='Audit history unavailable: '+events.error.message}else{const rows=events.data||[];$('automationHistory').innerHTML=rows.length?'<div class="table-wrap"><table><thead><tr><th>Time</th><th>Event</th><th>Record</th><th>Status</th><th>Summary</th></tr></thead><tbody>'+rows.map(e=>'<tr><td>'+esc(new Date(e.occurred_at).toLocaleString())+'</td><td>'+esc(e.event_type)+'</td><td>'+esc(e.entity_table)+'</td><td>'+esc(e.event_status)+'</td><td>'+esc(e.summary)+'</td></tr>').join('')+'</tbody></table></div>':'No automation events recorded yet.'}if(approvals.error){$('financialQueue').textContent='Approval queue unavailable: '+approvals.error.message}else{const rows=leads.filter(x=>x.status==='Won'||x.clientOrderId).map(lead=>({lead,approval:(approvals.data||[]).find(a=>a.lead_id===lead.id)}));$('financialQueue').innerHTML=rows.length?'<div class="table-wrap"><table><thead><tr><th>Confirmed order / service</th><th>Client requirement</th><th>Deadline</th><th>Agreed revenue</th><th>Actual / estimated expenses</th><th>Net benefit</th><th>Status</th><th>Action</th></tr></thead><tbody>'+rows.map(({lead,approval:a})=>{const estimatedCosts=['toolCost','paymentFees','deliveryCost','contingency','taxReserve'].reduce((n,k)=>n+(Number(lead[k])||0),0);const costs=Number(lead.actualExpense)>0?Number(lead.actualExpense):estimatedCosts;const revenue=Number(lead.dealRevenue)||0;const net=revenue-costs;const currency=lead.dealCurrency||a?.currency||'';return '<tr><td><strong>'+esc(lead.company)+'</strong><br>'+esc(lead.service||'—')+'</td><td>'+esc(lead.evidence||'Requirement not recorded')+'</td><td>'+esc(lead.deadline||'Not set')+'</td><td>'+esc(currency)+' '+revenue.toFixed(2)+'</td><td>'+esc(currency)+' '+costs.toFixed(2)+'</td><td>'+esc(currency)+' '+net.toFixed(2)+'</td><td>'+esc(a?.approval_status||'Order confirmed')+'</td><td><button class="smallbtn" data-finance-review="'+esc(lead.id)+'">Review</button></td></tr>'}).join('')+'</tbody></table></div>':'No client-confirmed orders yet.';document.querySelectorAll('[data-finance-review]').forEach(b=>b.addEventListener('click',()=>editLead(b.dataset.financeReview)))}}
 
 async function loadStageApprovals(){
@@ -332,7 +453,7 @@ $('financeForm').addEventListener('submit',async e=>{e.preventDefault();if(!wind
 $('refreshFinanceBtn').onclick=loadFinance;$('finDate').value=new Date().toISOString().slice(0,10);
 
 function authMessage(s){$('authMessage').textContent=s}
-async function setAuthenticated(session){window.genieSession=session;document.body.classList.toggle('authenticated',!!session);$('accountLabel').textContent=session?'Signed in: '+session.user.email:'';$('signOutBtn').classList.toggle('hide',!session);if(session){authMessage('Signed in. Loading your private leads…');try{await loadCloud();authMessage('Connected. Lead records sync to your private database.');}catch(e){authMessage('Database connection failed: '+e.message);}}else{authMessage('Sign in to open your private CRM.');}}
+async function setAuthenticated(session){window.genieSession=session;document.body.classList.toggle('authenticated',!!session);$('accountLabel').textContent=session?'Signed in: '+session.user.email:'';$('signOutBtn').classList.toggle('hide',!session);if(session){authMessage('Signed in. Loading your private leads…');try{await loadCloud();await loadAutomationControls();authMessage('Connected. Lead records sync to your private database.');}catch(e){authMessage('Database connection failed: '+e.message);}}else{authMessage('Sign in to open your private CRM.');}}
 $('signInBtn').onclick=async()=>{const email=$('authEmail').value.trim(),password=$('authPassword').value;if(!email||!password)return authMessage('Enter your email and password.');$('signInBtn').disabled=true;try{const {data,error}=await window.genieDb.auth.signInWithPassword({email,password});if(error)throw error;await setAuthenticated(data.session);}catch(e){authMessage('Sign-in error: '+e.message)}finally{$('signInBtn').disabled=false}};
 $('signOutBtn').onclick=async()=>{const {error}=await window.genieDb.auth.signOut();if(error)authMessage(error.message);await setAuthenticated(null)};
 window.genieDb.auth.onAuthStateChange((_event,session)=>{window.genieSession=session;document.body.classList.toggle('authenticated',!!session);$('accountLabel').textContent=session?'Signed in: '+session.user.email:'';$('signOutBtn').classList.toggle('hide',!session);});

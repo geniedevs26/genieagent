@@ -5,6 +5,7 @@ This worker never creates or approves an action. It executes only approval_reque
 whose status is already 'approved'. Ambiguous sends are not retried automatically.
 """
 import json, os, smtplib, sys, uuid, urllib.parse, urllib.request, urllib.error
+from automation_control import assert_outbound_enabled
 from datetime import datetime, timezone
 from email.message import EmailMessage
 
@@ -59,6 +60,7 @@ def finance_ready(finance,lead):
 def send_stage_email(key,owner_id,request,order,lead,smtp):
     host,port,user,password,sender=smtp
     recipient=(lead.get("contact_email") or "").strip()
+    assert_outbound_enabled(key, owner_id, "client_stage_email", recipient=recipient)
     if not recipient: raise RuntimeError("Verified client email is missing.")
     subject=clean_header(request.get("document_subject") or request.get("title"))
     body=(request.get("document_body") or "").strip()
@@ -179,6 +181,18 @@ def main():
             if block_reason:
                 api("/rest/v1/approval_requests?id=eq."+req["id"],key,"PATCH",{
                     "result_notes":"Approved by owner, but execution is blocked: "+block_reason
+                },"return=minimal")
+                blocked+=1
+                continue
+
+        # Check the central switch before claiming an approved request. A pause must
+        # leave the approval pending, not convert it into a failed/non-retryable action.
+        if stage in ("financial_proposal_send","agreement_send","milestone_delivery","final_delivery"):
+            try:
+                assert_outbound_enabled(key, owner_id, "client_stage_email", recipient=(lead.get("contact_email") or "").strip())
+            except Exception as exc:
+                api("/rest/v1/approval_requests?id=eq."+req["id"],key,"PATCH",{
+                    "result_notes":"Owner approval is retained; execution is paused by central controls: "+str(exc)[:350]
                 },"return=minimal")
                 blocked+=1
                 continue

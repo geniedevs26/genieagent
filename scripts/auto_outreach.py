@@ -9,9 +9,9 @@ import json, os, re, smtplib, sys, uuid, urllib.parse, urllib.request, urllib.er
 from urllib.parse import urlparse
 from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
+from automation_control import assert_outbound_enabled, OutboundBlocked
 
 SUPABASE_URL = "https://irpqaoooosrjhviwdddo.supabase.co"
-DAILY_LIMIT = 5
 FOLLOWUP_DAYS = (5, 12, 21)
 MAX_FOLLOWUPS = len(FOLLOWUP_DAYS)
 PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"
@@ -154,6 +154,8 @@ def send_email(key, owner_id, lead, email, sender, smtp_host, smtp_port, smtp_us
     msg["Subject"]=subject
     msg["Reply-To"]=sender
     msg.set_content(body)
+    channel = "follow_up" if kind == "follow_up" else "email"
+    assert_outbound_enabled(key, owner_id, channel, recipient=email)
     action_id=str(uuid.uuid4())
     api("/rest/v1/outreach_actions",key,"POST",{
         "id":action_id,"owner_id":owner_id,"lead_id":lead["id"],"action_type":kind,
@@ -206,10 +208,21 @@ def main():
     owner=next((u for u in users.get("users",[]) if (u.get("email") or "").lower()==owner_email),None)
     if not owner: raise RuntimeError("Owner email not found in Supabase Auth.")
     owner_id=owner["id"]
-    won=api("/rest/v1/leads?"+urllib.parse.urlencode({
-        "owner_id":"eq."+owner_id,"lead_status":"eq.won","select":"id","limit":"1000"
-    }),key) or []
-    daily_limit=2 if len(won)>=10 else DAILY_LIMIT
+    try:
+        assert_outbound_enabled(key, owner_id, "email")
+        email_enabled = True
+    except OutboundBlocked as exc:
+        email_enabled = False
+        print(str(exc))
+    try:
+        assert_outbound_enabled(key, owner_id, "follow_up")
+        followup_enabled = True
+    except OutboundBlocked as exc:
+        followup_enabled = False
+        print(str(exc))
+    if not email_enabled and not followup_enabled:
+        print("Automatic outreach skipped: all outbound channels are paused or disabled.")
+        return 0
     leads=api("/rest/v1/leads?"+urllib.parse.urlencode({
         "owner_id":"eq."+owner_id,"lead_status":"eq.qualified",
         "select":"id,company_name,contact_email,website_url,evidence_summary,evidence_url,service_need,payload",
@@ -239,9 +252,8 @@ def main():
     held_no_match=0
     now=datetime.now(timezone.utc)
     # Follow-ups run first, only after inbox monitoring has processed replies and bounces.
-    if imap_ready:
+    if imap_ready and followup_enabled:
         for lead in leads:
-            if sent>=daily_limit: break
             lid=lead["id"]
             initial=initial_by_lead.get(lid)
             prior=followups_by_lead.get(lid,[])
@@ -269,8 +281,7 @@ def main():
             else: failures+=1
 
     # New initial inquiries are sent only to automatically qualified records.
-    for lead in leads:
-        if sent>=daily_limit: break
+    for lead in leads if email_enabled else []:
         lid=lead["id"]
         payload=lead.get("payload") if isinstance(lead.get("payload"),dict) else {}
         email=(lead.get("contact_email") or payload.get("email") or "").strip()
