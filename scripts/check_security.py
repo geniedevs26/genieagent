@@ -18,6 +18,7 @@ research=(ROOT/"scripts/lead_research.py").read_text(encoding="utf-8")
 remote_jobs=(ROOT/"scripts/remote_job_research.py").read_text(encoding="utf-8")
 sync=(ROOT/"scripts/sync_candidates_supabase.py").read_text(encoding="utf-8")
 outreach=(ROOT/"scripts/auto_outreach.py").read_text(encoding="utf-8")
+controls=(ROOT/"scripts/automation_control.py").read_text(encoding="utf-8")
 inbox=(ROOT/"scripts/inbox_monitor.py").read_text(encoding="utf-8")
 executor=(ROOT/"scripts/execute_approved_actions.py").read_text(encoding="utf-8")
 
@@ -133,9 +134,9 @@ for item in [
         fail(f"missing private sync/audit/financial gate: {item}")
 
 for item in [
-    "DAILY_LIMIT = 5",
     "FOLLOWUP_DAYS = (5, 12, 21)",
     "MAX_FOLLOWUPS = len(FOLLOWUP_DAYS)",
+    "assert_outbound_enabled(key, owner_id, channel)",
     "PORTFOLIO_URL = \"https://sivaprasad-portfolio.pages.dev/\"",
     "def service_profile(lead, payload):",
     "def requirement_reference(evidence):",
@@ -211,8 +212,8 @@ for path in ROOT.rglob("*"):
         if re.search(pattern,content):
             fail(f"possible secret material detected in {path.relative_to(ROOT)}")
 
-if 'AUTO_OUTREACH_ENABLED: "false"' not in workflow:
-    fail("outreach must remain draft-only until each message receives owner approval")
+if 'AUTO_OUTREACH_ENABLED: "true"' not in workflow:
+    fail("outreach worker must run through the database-backed central control gate")
 if '"lead_status":"eq.qualified"' not in outreach:
     fail("automatic outreach must process only paid-confirmed qualified leads")
 if 'payload.get("paidSignal")!="Yes"' not in outreach:
@@ -242,6 +243,24 @@ if 'PORTFOLIO_URL = "https://sivaprasad-portfolio.pages.dev/"' not in outreach:
 if 'NON_BUYER_PUBLISHERS = {"hubspot.com"}' not in outreach:
     fail("known non-buyer publisher block missing")
 
-print("PASS: authenticated CRM, direct-buyer research, remote job discovery, private job sync, owner-controlled outreach, and per-stage approval gates.")
+for item in [
+    "class OutboundBlocked(RuntimeError):",
+    "def assert_outbound_enabled(key, owner_id, channel):",
+    '"state": "eq.running"',
+    '"enabled": "eq.true"',
+    "fail-closed",
+]:
+    if item not in controls:
+        fail(f"missing central automation safety control: {item}")
+for source, required in [
+    (outreach, "assert_outbound_enabled(key, owner_id, channel)"),
+    (inbox, 'assert_outbound_enabled(key, owner_id, "ai_reply")'),
+    (executor, 'assert_outbound_enabled(key, owner_id, "client_stage_email")'),
+]:
+    if required not in source:
+        fail("an outbound worker is missing its central automation control check")
+if "DAILY_LIMIT" in outreach or "ai_reply_limit" in inbox:
+    fail("arbitrary owner-imposed daily outbound caps must not replace provider quotas")
+print("PASS: authenticated CRM, direct-buyer research, private job sync, fail-closed global/channel outbound controls, opt-out gates, and owner-approved order stages.")
 
 # Regression policy is maintained alongside the research-first qualification workflow.
