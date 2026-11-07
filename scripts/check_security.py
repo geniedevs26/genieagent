@@ -214,6 +214,9 @@ for path in ROOT.rglob("*"):
 
 if 'AUTO_OUTREACH_ENABLED: "true"' not in workflow:
     fail("outreach worker must run through the database-backed central control gate")
+for name, source in [("lead research", workflow), ("remote job research", job_workflow)]:
+    if "branches: [main]" not in source or "if: github.ref == 'refs/heads/main'" not in source:
+        fail(f"{name} live workflow must be restricted to main to avoid feature-branch production syncs")
 if '"lead_status":"eq.qualified"' not in outreach:
     fail("automatic outreach must process only paid-confirmed qualified leads")
 if 'payload.get("paidSignal")!="Yes"' not in outreach:
