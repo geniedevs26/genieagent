@@ -104,7 +104,49 @@ label{color:#475467;font-size:12px}
 #authMessage{color:#667085}
 @media(max-width:650px){.quicknav{top:0;padding:8px 12px}.wrap{padding:16px 12px 36px}.panel{padding:15px}header{padding:13px 14px}}
 </style>
-</head>
+<style id="genie-dashboard-rethink">
+/* Rethought workspace: plain-language, focused, less dashboard noise */
+:root{color-scheme:light;--bg:#f4f6fa;--panel:#fff;--line:#e5e9f1;--text:#182230;--muted:#64748b;--accent:#3659d9;--danger:#c43d4b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+body:before{display:none}
+header{position:static!important;background:#fff;border-bottom:1px solid var(--line);padding:17px 28px;display:flex;justify-content:space-between;gap:16px}
+header h1{font-size:22px;letter-spacing:-.04em;color:#172033}h1 span{color:var(--accent)!important}header .sub{font-size:12px;margin-top:2px}
+header .actions button{padding:8px 12px}
+.quicknav{position:sticky;top:0;z-index:20;background:#fff;border:0;border-bottom:1px solid var(--line);padding:9px 28px;gap:6px}
+.quicknav a{background:transparent;color:#657187;border:1px solid transparent;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600}
+.quicknav a[aria-current=page]{background:#edf1ff;color:#304fc5;border-color:#dfe6ff}
+.quicknav a:hover{background:#f6f8fc;color:#253b8e}
+.wrap{max-width:1320px;padding:24px 28px 48px}
+.notice{background:#fff;border:1px solid var(--line);border-left:3px solid #8aa1f6;color:#526078;padding:12px 15px;border-radius:9px;margin-bottom:18px;font-size:13px}
+.stats{gap:14px;margin-bottom:18px}.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:none}.stat strong{font-size:29px;color:#172033;letter-spacing:-.04em}.stat small{color:#748096}
+.panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:15px;box-shadow:none}
+.panel h2{font-size:17px;font-weight:700;letter-spacing:-.02em;margin-bottom:14px;color:#202b3c}
+h3{font-size:14px;color:#344054}
+button{background:#fff;border:1px solid #d5dbe5;color:#344054;border-radius:8px;padding:9px 13px;font-weight:600;box-shadow:none}
+button:hover{background:#f8faff;border-color:#b8c5dc}button.primary{background:#3659d9;border-color:#3659d9;color:white}button.primary:hover{background:#2c49b8}button.danger{background:#fff;color:#b42332;border-color:#f1c7cc}
+input,select,textarea{background:#fff;color:#182230;border:1px solid #d5dbe5;border-radius:8px;padding:10px}
+label{color:#58667c;font-size:12px}
+.table-wrap{border:1px solid var(--line);border-radius:9px}table{background:#fff}th{background:#f7f9fc;color:#58667c;font-weight:650}td{color:#344054}tr:hover td{background:#fafcff}
+.pill{background:#eef2f7;color:#526078;font-weight:600}.pill.replied{background:#e8f8ef;color:#087443}.pill.optout{background:#fff0f0;color:#b42332}
+#automationCard{display:block!important;background:#fff!important;border:1px solid var(--line)!important;border-radius:12px!important}
+#automationCard h2{font-size:17px}#automationCard>div>p:first-of-type{font-size:13px;color:#64748b}
+#automationCard>div>p:last-of-type{display:none}
+.control-panel{background:#f8fafc;border:1px solid #e5e9f1;border-radius:10px;padding:15px}
+.control-heading strong{font-size:13px;color:#344054}.channel-switch{background:#fff;border-color:#e5e9f1}
+#authPanel{background:#fff!important;border:1px solid var(--line)!important;border-radius:14px!important;box-shadow:0 12px 40px #1720330c!important;color:#182230}
+#authPanel h1{font-size:27px;color:#182230}#authPanel .sub{color:#64748b}
+#authPanel input{background:#fff!important;color:#182230!important;border-color:#d5dbe5!important}
+#authMessage{color:#64748b}
+body.authenticated main.wrap>.notice{font-size:12px}
+body.authenticated.view-dashboard main.wrap>.notice{display:none}
+body.authenticated.view-dashboard main.wrap>#automationCard{margin-top:0}
+body.authenticated.view-dashboard main.wrap>#dashboardStats{margin-top:0}
+body.authenticated.view-dashboard main.wrap>#dashboardNote{display:block!important}
+body.authenticated.view-dashboard main.wrap>#dashboardNote .panel{border:0;background:transparent;padding:0}
+body.authenticated.view-dashboard main.wrap>#dashboardNote h2{font-size:20px}
+body.authenticated.view-dashboard main.wrap>#dashboardNote p{color:#64748b}
+@media(max-width:700px){header{padding:14px;align-items:flex-start;flex-direction:column}.quicknav{padding:8px 12px;overflow-x:auto;flex-wrap:nowrap}.quicknav a{white-space:nowrap}.wrap{padding:15px 12px 35px}.panel{padding:15px}}
+</style></head>
 <body>
 
 <section id="authPanel" aria-labelledby="authTitle"><h1 id="authTitle">GenieAgent <span style="color:#70e1c1">Secure Login</span></h1><p class="sub">Owner-only access. Accounts must be created by the project owner.</p><label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="username" required placeholder="you@example.com"><label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="At least 8 characters"><div class="auth-actions"><button id="signInBtn" class="primary">Sign in</button></div><p id="authMessage" role="status">Account creation is restricted. Sign in with the owner account.</p></section>
@@ -112,7 +154,7 @@ label{color:#475467;font-size:12px}
 <header><div class="actions" style="margin:0"><span id="accountLabel" class="muted"></span><button id="signOutBtn">Sign out</button></div><div><h1>GenieDevs <span>Client Desk</span></h1><p class="sub">One clear place to manage researched leads, client orders and activity</p></div><div class="actions" style="margin:0"><button id="autoLoadBtn" class="primary">Automation runs ↗</button><button id="exportBtn">Export CSV backup</button><input id="csvFile" type="file" accept=".csv,text/csv" class="hide"></div></header>
 <nav class="quicknav" aria-label="Main navigation"><a href="#automationCard" data-view="dashboard">Dashboard</a><a href="#leadRowsPanel" data-view="leads">Leads</a><a href="#remoteJobsPanel" data-view="jobs">Remote Jobs</a><a href="#financialQueuePanel" data-view="orders">Orders & approvals</a><a href="#automationHistoryPanel" data-view="activity">Activity records</a><a href="#financeLedgerPanel" data-view="income">Income / expenses</a></nav>
 <main class="wrap">
-<div class="notice"><strong>How to use:</strong> Dashboard = totals · Leads = verified buyer requests · Orders = buyer-confirmed order intent and owner financial/legal approvals · Activity = all communication and research history.</div>
+<div class="notice"><strong>Quick guide:</strong> Dashboard = overall status · Leads = potential customers · Orders = customers ready to proceed · Activity = what the system did.</div>
 <section id="automationCard" class="panel"><div><h2>Hourly lead research automation</h2><p><strong>Scheduled: every hour.</strong> Searches independent public search sources and checks pages for stated business requirements.</p><p id="lastRunSummary" class="muted">Loading latest completed research run…</p>
 <div id="automationControls" class="control-panel" aria-live="polite">
   <div class="control-heading"><strong>Global automation controls</strong><span id="automationStateLabel" class="pill">Loading controls…</span></div>
