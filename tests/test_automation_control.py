@@ -52,6 +52,21 @@ class ControlTests(unittest.TestCase):
         with self.assertRaises(controls.OutboundBlocked):
             controls.assert_outbound_enabled("key", "owner", "sms")
 
+    def test_suppressed_recipient_blocks(self):
+        with patch.object(controls, "read_rows", side_effect=[
+            [{"state": "running"}], [{"enabled": True}], [{"id": "suppression"}]
+        ]):
+            with self.assertRaises(controls.OutboundBlocked):
+                controls.assert_outbound_enabled("key", "owner", "email", recipient="person@example.com")
+
+    def test_unsuppressed_recipient_allows(self):
+        with patch.object(controls, "read_rows", side_effect=[
+            [{"state": "running"}], [{"enabled": True}], []
+        ]):
+            self.assertTrue(controls.assert_outbound_enabled(
+                "key", "owner", "email", recipient="person@example.com"
+            ))
+
 
 if __name__ == "__main__":
     unittest.main()
