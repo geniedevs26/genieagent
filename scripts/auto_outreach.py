@@ -155,7 +155,7 @@ def send_email(key, owner_id, lead, email, sender, smtp_host, smtp_port, smtp_us
     msg["Reply-To"]=sender
     msg.set_content(body)
     channel = "follow_up" if kind == "follow_up" else "email"
-    assert_outbound_enabled(key, owner_id, channel)
+    assert_outbound_enabled(key, owner_id, channel, recipient=email)
     action_id=str(uuid.uuid4())
     api("/rest/v1/outreach_actions",key,"POST",{
         "id":action_id,"owner_id":owner_id,"lead_id":lead["id"],"action_type":kind,
