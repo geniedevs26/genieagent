@@ -13,7 +13,7 @@ Owner-only client acquisition automation: persistent public research, automatic 
 3. The page must be on the business's own website and expose a public business email. The research worker checks the contact page, then records the page URL, evidence excerpt, provider and next recheck time in the private research_pages table.
 4. Research cursor state is persistent. Recently checked pages are skipped; fetch failures are retried sooner; non-matching pages are rechecked later. Search therefore progresses beyond the same first 40 results on every run.
 5. Only automatically verified direct-business requirements with a public same-site email enter leads as qualified. Unverified pages and contact-form-only pages are not treated as qualified email leads.
-6. The owner has authorized automatic, individually composed first-contact emails and up to three reply-aware follow-ups for verified buyer requests. The scheduled workflow enables this with `AUTO_OUTREACH_ENABLED: true`; it sends only to a public, verified email address, never to a guessed address. Only requests with explicit paid/contract intent and a verified public same-site email are eligible for automatic outreach. Budget-unconfirmed and otherwise unverified research remains separate and is not emailed. Inbox monitoring runs before follow-up eligibility; replies, bounces and opt-outs stop inappropriate follow-ups. SMTP acceptance is never described as confirmed delivery.
+6. First-contact emails, follow-ups, automatic buyer replies and owner-approved stage emails are guarded by a central global state and independent channel switches. They default to paused/disabled. After the central-controls migration is applied, the owner must explicitly enable the required channels in the dashboard. Workers check the global state, channel switch and database suppression list immediately before each send. Only requests with explicit paid/contract intent and a verified public same-site email are eligible. Budget-unconfirmed and otherwise unverified research remains separate and is not emailed. Inbox monitoring runs before follow-up eligibility; replies, bounces and opt-outs stop inappropriate follow-ups. SMTP acceptance is never described as confirmed delivery.
 7. A buyer reply requesting a quote/proposal creates a private client-order opportunity and a pending financial-proposal approval. Price, payment terms, binding agreement and other financial/legal commitments remain blocked until the owner approves them.
 
 ## Owner approval after client interest
@@ -28,6 +28,11 @@ Every post-interest stage has a separate approval request in the dashboard's Ord
 
 An approval click queues execution for the next hourly workflow run; it does not itself send the message. If a required financial field or document placeholder remains incomplete, execution is blocked. Ambiguous SMTP failures are held for review and are not retried automatically.
 
+## Central automation controls
+The database migration `20261107120000_add_central_automation_controls.sql` creates owner-only global and channel switches. A missing migration or unavailable control API blocks outbound work. Start All enables the outbound channels; Pause All and Emergency Stop block them. Emergency Stop must be explicitly reset before automation can resume. The separate suppression-permissions migration removes public execution of the suppression trigger function. These migrations are included in the feature branch but are not applied to production yet.
+
+Live lead research and remote-job sync are restricted to the `main` branch; feature-branch pushes cannot run production CRM-sync jobs.
+
 ## Required GitHub Actions secrets
 For private Supabase sync and research cursor:
 - SUPABASE_SERVICE_ROLE_KEY
@@ -39,7 +44,7 @@ For initial outreach, follow-up and approved-stage emails:
 - SMTP_USERNAME
 - SMTP_PASSWORD (provider app password/credential)
 - GENIE_SENDER_EMAIL
-- Optional SUPPRESSED_EMAILS (comma-separated addresses that must never be contacted)\n\nFor bounded AI email replies (Cloudflare Workers AI free allocation):\n- CLOUDFLARE_AI_ACCOUNT_ID\n- CLOUDFLARE_AI_API_TOKEN (Workers AI API token with Workers AI Read permission; keep only in GitHub Actions Secrets)\n\nWorkers AI currently includes 10,000 Neurons/day on the Free Workers plan. GenieAgent caps itself at three low-risk AI replies per UTC day. Keep the Cloudflare account on the Free plan and do not add paid credits or upgrade. If the daily free allocation is exhausted, AI replies fail closed and are held.
+- Optional SUPPRESSED_EMAILS (comma-separated addresses that must never be contacted)\n\nFor bounded AI email replies (Cloudflare Workers AI free allocation):\n- CLOUDFLARE_AI_ACCOUNT_ID\n- CLOUDFLARE_AI_API_TOKEN (Workers AI API token with Workers AI Read permission; keep only in GitHub Actions Secrets)\n\nThe application does not impose an arbitrary daily AI-reply count. Cloudflare's current account allocation, rate limits and plan terms still apply; the workflow must not be used to bypass provider limits. If the provider rejects or throttles a request, the message remains held for review.
 
 For inbox reply/bounce, AI email replies and client-stage monitoring:
 - IMAP_HOST
@@ -48,7 +53,7 @@ For inbox reply/bounce, AI email replies and client-stage monitoring:
 - IMAP_PASSWORD
 - Optional IMAP_FOLDER (normally INBOX)
 
-These credentials belong only in GitHub Actions Secrets. Do not paste them into chat or commit them. The owner has authorized automatic prospect inquiries and bounded follow-ups; the workflow sets AUTO_OUTREACH_ENABLED=true. Do not enable calls, payments, binding agreements or financial commitments without the separate required setup and owner approval.
+These credentials belong only in GitHub Actions Secrets. Do not paste them into chat or commit them. The workflow worker is enabled, but outbound messages remain blocked until the owner-controlled database switches are available and explicitly enabled. Do not enable calls, payments, binding agreements or financial commitments without the separate required setup and owner approval.
 
 ## Calling
 Automatic AI phone calling is not connected. A compliant PSTN calling route is required to reach ordinary mobile/landline numbers; browser/WebRTC software alone does not provide free PSTN minutes. No genuinely zero-cost provider with verified ongoing India outbound calling has been found, and no paid provider is configured. No call is claimed as placed.
@@ -74,4 +79,4 @@ Cloudflare Pages uses framework preset None, no build command, and / as the outp
 
 
 ## Optional AI email replies
-See [AI reply setup](docs/AI_REPLY_SETUP.md) for the optional, guarded Cloudflare Workers AI responder, daily cap, and one-time GitHub Secrets configuration.
+See [AI reply setup](docs/AI_REPLY_SETUP.md) for the optional, guarded Cloudflare Workers AI responder and one-time GitHub Secrets configuration.
