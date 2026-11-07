@@ -185,6 +185,18 @@ def main():
                 blocked+=1
                 continue
 
+        # Check the central switch before claiming an approved request. A pause must
+        # leave the approval pending, not convert it into a failed/non-retryable action.
+        if stage in ("financial_proposal_send","agreement_send","milestone_delivery","final_delivery"):
+            try:
+                assert_outbound_enabled(key, owner_id, "client_stage_email")
+            except Exception as exc:
+                api("/rest/v1/approval_requests?id=eq."+req["id"],key,"PATCH",{
+                    "result_notes":"Owner approval is retained; execution is paused by central controls: "+str(exc)[:350]
+                },"return=minimal")
+                blocked+=1
+                continue
+
         # Lock before external side effects. If a run is interrupted mid-send, it will not resend.
         api("/rest/v1/approval_requests?id=eq."+req["id"]+"&status=eq.approved",key,"PATCH",{
             "status":"executing","result_notes":"Owner approval received; execution started."
