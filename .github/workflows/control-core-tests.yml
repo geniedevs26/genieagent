@@ -3,6 +3,7 @@ name: Central automation controls tests
 on:
   push:
     branches:
+      - main
       - feature/control-core-integration
     paths:
       - 'supabase/migrations/20261107120000_add_central_automation_controls.sql'
