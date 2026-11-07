@@ -2,6 +2,7 @@ name: Daily public lead research
 
 on:
   push:
+    branches: [main]
     paths:
       - 'scripts/lead_research.py'
       - 'scripts/remote_job_research.py'
