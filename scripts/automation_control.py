@@ -37,13 +37,13 @@ def assert_outbound_enabled(key, owner_id, channel):
     if not key or not owner_id or channel not in CHANNELS:
         raise OutboundBlocked("Outbound blocked: missing identity or unknown channel.")
     controls = read_rows("automation_controls", key, {
-        "owner_id": "eq." + owner_id, "select": "state", "limit": "1"
+        "owner_id": "eq." + owner_id, "state": "eq.running", "select": "state", "limit": "1"
     })
     if len(controls) != 1 or controls[0].get("state") != "running":
         raise OutboundBlocked("Outbound blocked: automation is paused or emergency-stopped.")
     switches = read_rows("channel_controls", key, {
         "owner_id": "eq." + owner_id, "channel": "eq." + channel,
-        "select": "enabled", "limit": "1"
+        "enabled": "eq.true", "select": "enabled", "limit": "1"
     })
     if len(switches) != 1 or switches[0].get("enabled") is not True:
         raise OutboundBlocked("Outbound blocked: channel is not explicitly enabled.")
