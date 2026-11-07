@@ -58,9 +58,9 @@ def finance_ready(finance,lead):
     return True,""
 
 def send_stage_email(key,owner_id,request,order,lead,smtp):
-    assert_outbound_enabled(key, owner_id, "client_stage_email")
     host,port,user,password,sender=smtp
     recipient=(lead.get("contact_email") or "").strip()
+    assert_outbound_enabled(key, owner_id, "client_stage_email", recipient=recipient)
     if not recipient: raise RuntimeError("Verified client email is missing.")
     subject=clean_header(request.get("document_subject") or request.get("title"))
     body=(request.get("document_body") or "").strip()
@@ -189,7 +189,7 @@ def main():
         # leave the approval pending, not convert it into a failed/non-retryable action.
         if stage in ("financial_proposal_send","agreement_send","milestone_delivery","final_delivery"):
             try:
-                assert_outbound_enabled(key, owner_id, "client_stage_email")
+                assert_outbound_enabled(key, owner_id, "client_stage_email", recipient=(lead.get("contact_email") or "").strip())
             except Exception as exc:
                 api("/rest/v1/approval_requests?id=eq."+req["id"],key,"PATCH",{
                     "result_notes":"Owner approval is retained; execution is paused by central controls: "+str(exc)[:350]
