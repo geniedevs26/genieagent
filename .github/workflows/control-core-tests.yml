@@ -6,6 +6,7 @@ on:
       - feature/control-core-integration
     paths:
       - 'supabase/migrations/20261107120000_add_central_automation_controls.sql'
+      - 'supabase/migrations/20261107121000_restrict_suppression_trigger_function.sql'
       - 'scripts/automation_control.py'
       - 'tests/**'
       - '.github/workflows/control-core-tests.yml'
@@ -56,11 +57,18 @@ jobs:
           grant usage on schema auth to authenticated, service_role;
           grant execute on function auth.uid() to authenticated, service_role;
           grant select on auth.users to authenticated, service_role;
+          create function public.block_suppressed_outreach() returns trigger
+            language plpgsql security definer set search_path=public
+            as $ begin return new; end $;
           SQL
       - name: Apply migration to isolated PostgreSQL
         env:
           PGPASSWORD: postgres
         run: psql -h localhost -U postgres -d genieagent_test -v ON_ERROR_STOP=1 -f supabase/migrations/20261107120000_add_central_automation_controls.sql
+      - name: Restrict public execution of suppression trigger function
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d genieagent_test -v ON_ERROR_STOP=1 -f supabase/migrations/20261107121000_restrict_suppression_trigger_function.sql
       - name: Verify defaults, owner isolation, updates and service-role access
         env:
           PGPASSWORD: postgres
